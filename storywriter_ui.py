@@ -98,7 +98,7 @@ class StoryWriterUI:
             self.disable_raw_mode()
     
     def load_books(self):
-        """Load list of books from the books directory"""
+        """Load list of books from the books directory, sorted by recent order"""
         if not os.path.exists(self.books_directory):
             os.makedirs(self.books_directory)
             self.books_list = []
@@ -107,8 +107,29 @@ class StoryWriterUI:
         # Get all directories in the books folder
         try:
             items = os.listdir(self.books_directory)
-            self.books_list = [item for item in items if os.path.isdir(os.path.join(self.books_directory, item))]
-            self.books_list.sort()
+            all_books = [item for item in items if os.path.isdir(os.path.join(self.books_directory, item))]
+            
+            # Read book order from .data file
+            book_order = []
+            if os.path.exists('.data'):
+                with open('.data', 'r') as f:
+                    book_order = [line.strip() for line in f.readlines() if line.strip()]
+            
+            # Sort books by order (recent first), then alphabetically for books not in order
+            ordered_books = []
+            unordered_books = []
+            
+            for book in book_order:
+                if book in all_books:
+                    ordered_books.append(book)
+            
+            for book in all_books:
+                if book not in ordered_books:
+                    unordered_books.append(book)
+            
+            unordered_books.sort()  # Sort alphabetically
+            self.books_list = ordered_books + unordered_books
+            
         except OSError:
             self.books_list = []
     
@@ -152,14 +173,40 @@ class StoryWriterUI:
             ordered_chapters.extend(chapter_files)
             
             self.chapters_list = ordered_chapters
+            
+            # Clear main content if no chapters exist
+            if not self.chapters_list:
+                self.main_content = ""
+                self.cursor_pos = 0
+                self.current_chapter = None
         except OSError:
             self.chapters_list = []
+            # Clear main content on error
+            self.main_content = ""
+            self.cursor_pos = 0
+            self.current_chapter = None
     
     def save_last_book(self, book_name: str):
-        """Save the current book name to .data file"""
+        """Save the current book name to .data file and update order"""
         try:
+            # Read existing order
+            book_order = []
+            if os.path.exists('.data'):
+                with open('.data', 'r') as f:
+                    book_order = [line.strip() for line in f.readlines() if line.strip()]
+            
+            # Remove book if it exists and add to front
+            if book_name in book_order:
+                book_order.remove(book_name)
+            book_order.insert(0, book_name)
+            
+            # Keep only the last 10 books to avoid file getting too large
+            book_order = book_order[:10]
+            
+            # Write updated order
             with open('.data', 'w') as f:
-                f.write(book_name)
+                for book in book_order:
+                    f.write(book + '\n')
         except OSError:
             pass
     
@@ -168,9 +215,10 @@ class StoryWriterUI:
         try:
             if os.path.exists('.data'):
                 with open('.data', 'r') as f:
-                    book_name = f.read().strip()
-                    if book_name and os.path.exists(os.path.join(self.books_directory, book_name)):
-                        self.load_book(book_name)
+                    book_order = [line.strip() for line in f.readlines() if line.strip()]
+                    # Get the first (most recent) book
+                    if book_order and os.path.exists(os.path.join(self.books_directory, book_order[0])):
+                        self.load_book(book_order[0])
                         self.panel_focused = True  # Focus panel when auto-loading book
                         self.left_panel_expanded = True  # Always open side panel when book is loaded
                         # Show preview of first chapter if available
@@ -274,6 +322,8 @@ class StoryWriterUI:
             order_file = os.path.join(book_path, '.chapter_order')
             with open(order_file, 'w') as f:
                 f.write('')
+            # Add new book to the top of the order
+            self.save_last_book(safe_name)
             return True
         except OSError:
             return False
@@ -369,7 +419,7 @@ class StoryWriterUI:
             return
             
         panel_width = self.left_panel_width
-        panel_height = self.height - 1  # Leave room for bottom bar
+        panel_height = self.height  # Use full height since no bottom bar
         
         # Draw the left panel border with book title or "BOOKS"
         if self.current_book:
@@ -439,7 +489,7 @@ class StoryWriterUI:
             start_x = 1
             
         content_width = self.width - start_x
-        content_height = self.height - 1  # Leave room for bottom bar
+        content_height = self.height  # Use full height since no bottom bar
         
         # Draw main content border
         if self.current_mode == "book_list":
@@ -539,7 +589,6 @@ class StoryWriterUI:
         self.draw_left_panel()
         self.draw_main_content()
         self.draw_input_dialog()
-        self.draw_bottom_bar()
         
         # Position cursor in main content area
         if self.left_panel_expanded:
@@ -756,6 +805,10 @@ class StoryWriterUI:
             self.main_content = ""
             self.cursor_pos = 0
             self.current_chapter = safe_name
+            # Exit preview mode and close side panel
+            self.preview_mode = False
+            self.left_panel_expanded = False
+            self.panel_focused = False
         except OSError:
             pass
     
