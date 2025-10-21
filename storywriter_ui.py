@@ -32,6 +32,7 @@ class StoryWriterUI:
         self.chapters_list = []
         self.chapter_selection = 0
         self.chapter_focused = False
+        self.current_chapter = None
         
         # Terminal settings for raw input
         self.old_settings = None
@@ -106,6 +107,7 @@ class StoryWriterUI:
     def load_book(self, book_name: str):
         """Load a specific book and its chapters"""
         self.current_book = book_name
+        self.current_chapter = None  # Clear current chapter when loading new book
         book_path = os.path.join(self.books_directory, book_name)
         
         if not os.path.exists(book_path):
@@ -281,7 +283,7 @@ class StoryWriterUI:
                     if chapter.endswith('.md'):
                         display_name = chapter[:-3]  # Remove .md extension
                     
-                    if i == self.chapter_selection and self.chapter_focused:
+                    if i == self.panel_selection and self.panel_focused:
                         content_lines.append(f"> {display_name}")
                     else:
                         content_lines.append(f"  {display_name}")
@@ -330,6 +332,12 @@ class StoryWriterUI:
         # Draw main content border
         if self.current_mode == "book_list":
             title = "BOOKS"
+        elif self.current_chapter:
+            # Show chapter title without extension
+            chapter_title = self.current_chapter
+            if chapter_title.endswith('.md'):
+                chapter_title = chapter_title[:-3]  # Remove .md extension
+            title = chapter_title
         else:
             title = "STORY EDITOR" if not self.left_panel_expanded else ""
         self.draw_border(start_x, 1, content_width, content_height, title)
@@ -400,7 +408,7 @@ class StoryWriterUI:
         if self.current_mode == "book_list":
             print(f"\033[{y};1H^B panel  ^N new book  ^R rename  ^D delete  ^Q quit", end='')
         elif self.current_book:
-            print(f"\033[{y};1H^B panel  ^N new chapter  ^Q quit", end='')
+            print(f"\033[{y};1H^B panel  ^N new chapter  ^O open book  ^Q quit", end='')
         else:
             print(f"\033[{y};1H^B panel  ^O open book  ^Q quit", end='')
     
@@ -451,7 +459,7 @@ class StoryWriterUI:
             # Delete book
             if self.books_list and self.book_selection < len(self.books_list):
                 self.delete_book_callback()
-        elif key == 'CTRL_O' and not self.current_book and self.current_mode != "book_list":
+        elif key == 'CTRL_O' and self.current_mode != "book_list":
             # Open book list
             self.current_mode = "book_list"
             self.load_books()
@@ -481,8 +489,8 @@ class StoryWriterUI:
                     self.load_book(selected_book)
                     self.current_mode = "editor"
                     self.book_focused = False
-                    self.chapter_selection = 0
-                    self.chapter_focused = False
+                    self.panel_selection = 0
+                    self.panel_focused = False
             elif self.left_panel_expanded and self.panel_focused and self.panel_selection in self.selectable_items:
                 # Handle panel item selection
                 if self.current_book:
@@ -490,6 +498,7 @@ class StoryWriterUI:
                     if self.panel_selection < len(self.chapters_list):
                         # Chapter selected
                         selected_chapter = self.chapters_list[self.panel_selection]
+                        self.current_chapter = selected_chapter
                         # TODO: Load chapter content
                         pass
                 # Return focus to editor after selection
