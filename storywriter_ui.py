@@ -172,6 +172,7 @@ class StoryWriterUI:
                     if book_name and os.path.exists(os.path.join(self.books_directory, book_name)):
                         self.load_book(book_name)
                         self.panel_focused = True  # Focus panel when auto-loading book
+                        self.left_panel_expanded = True  # Always open side panel when book is loaded
                         # Show preview of first chapter if available
                         if self.chapters_list:
                             first_chapter = self.chapters_list[0]
@@ -620,6 +621,7 @@ class StoryWriterUI:
                     self.book_focused = False
                     self.panel_selection = 0
                     self.panel_focused = True  # Focus the panel when book is loaded
+                    self.left_panel_expanded = True  # Always open side panel when book is loaded
                     # Show preview of first chapter if available
                     if self.chapters_list:
                         first_chapter = self.chapters_list[0]
