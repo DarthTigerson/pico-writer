@@ -33,6 +33,12 @@ class StoryWriterUI:
         self.chapter_selection = 0
         self.chapter_focused = False
         self.current_chapter = None
+        self.preview_mode = False
+        self.preview_content = ""
+        self.preview_chapter = None
+        
+        # Load last book on startup
+        self.load_last_book()
         
         # Terminal settings for raw input
         self.old_settings = None
@@ -83,6 +89,8 @@ class StoryWriterUI:
                 return 'CTRL_D'
             elif key == '\x0f':  # Ctrl+O
                 return 'CTRL_O'
+            elif key == '\x13':  # Ctrl+S
+                return 'CTRL_S'
             elif key == '\x1b':  # Escape
                 return 'ESC'
             return key
@@ -108,6 +116,7 @@ class StoryWriterUI:
         """Load a specific book and its chapters"""
         self.current_book = book_name
         self.current_chapter = None  # Clear current chapter when loading new book
+        self.save_last_book(book_name)  # Save the current book
         book_path = os.path.join(self.books_directory, book_name)
         
         if not os.path.exists(book_path):
@@ -145,6 +154,104 @@ class StoryWriterUI:
             self.chapters_list = ordered_chapters
         except OSError:
             self.chapters_list = []
+    
+    def save_last_book(self, book_name: str):
+        """Save the current book name to .data file"""
+        try:
+            with open('.data', 'w') as f:
+                f.write(book_name)
+        except OSError:
+            pass
+    
+    def load_last_book(self):
+        """Load the last book from .data file or open book selection"""
+        try:
+            if os.path.exists('.data'):
+                with open('.data', 'r') as f:
+                    book_name = f.read().strip()
+                    if book_name and os.path.exists(os.path.join(self.books_directory, book_name)):
+                        self.load_book(book_name)
+                        self.panel_focused = True  # Focus panel when auto-loading book
+                        # Show preview of first chapter if available
+                        if self.chapters_list:
+                            first_chapter = self.chapters_list[0]
+                            self.load_chapter_preview(first_chapter)
+                            self.preview_mode = True
+                        return
+            
+            # If no book found, automatically open book selection
+            self.left_panel_expanded = False  # Close side panel
+            self.current_mode = "book_list"
+            self.load_books()
+            self.book_selection = 0
+            self.book_focused = True
+        except OSError:
+            # If error reading .data, open book selection
+            self.left_panel_expanded = False  # Close side panel
+            self.current_mode = "book_list"
+            self.load_books()
+            self.book_selection = 0
+            self.book_focused = True
+    
+    def save_current_chapter(self):
+        """Save the current chapter content to file"""
+        if not self.current_book or not self.current_chapter:
+            return False
+        
+        try:
+            book_path = os.path.join(self.books_directory, self.current_book)
+            chapter_path = os.path.join(book_path, self.current_chapter)
+            
+            with open(chapter_path, 'w') as f:
+                f.write(self.main_content)
+            return True
+        except OSError:
+            return False
+    
+    def load_chapter(self, chapter_name: str):
+        """Load a specific chapter content"""
+        if not self.current_book or not chapter_name:
+            return False
+        
+        try:
+            book_path = os.path.join(self.books_directory, self.current_book)
+            chapter_path = os.path.join(book_path, chapter_name)
+            
+            if os.path.exists(chapter_path):
+                with open(chapter_path, 'r') as f:
+                    self.main_content = f.read()
+                self.cursor_pos = len(self.main_content)
+                return True
+            else:
+                # Chapter doesn't exist, create empty content
+                self.main_content = ""
+                self.cursor_pos = 0
+                return True
+        except OSError:
+            return False
+    
+    def load_chapter_preview(self, chapter_name: str):
+        """Load a chapter preview without setting it as current"""
+        if not self.current_book or not chapter_name:
+            return False
+        
+        try:
+            book_path = os.path.join(self.books_directory, self.current_book)
+            chapter_path = os.path.join(book_path, chapter_name)
+            
+            if os.path.exists(chapter_path):
+                with open(chapter_path, 'r') as f:
+                    self.preview_content = f.read()
+                self.preview_chapter = chapter_name
+                return True
+            else:
+                self.preview_content = ""
+                self.preview_chapter = chapter_name
+                return True
+        except OSError:
+            self.preview_content = ""
+            self.preview_chapter = None
+            return False
     
     def create_new_book(self, book_name: str):
         """Create a new book directory"""
@@ -276,17 +383,21 @@ class StoryWriterUI:
         if self.current_book:
             # Show chapters when a book is loaded
             content_lines = []
-            for i, chapter in enumerate(self.chapters_list):
-                if i < available_lines - 3:  # Leave space for bottom items
-                    # Display chapter name without extension
-                    display_name = chapter
-                    if chapter.endswith('.md'):
-                        display_name = chapter[:-3]  # Remove .md extension
-                    
-                    if i == self.panel_selection and self.panel_focused:
-                        content_lines.append(f"> {display_name}")
-                    else:
-                        content_lines.append(f"  {display_name}")
+            if not self.chapters_list:
+                # Display "No Chapters" message at the top
+                content_lines.append("No Chapters")
+            else:
+                for i, chapter in enumerate(self.chapters_list):
+                    if i < available_lines - 3:  # Leave space for bottom items
+                        # Display chapter name without extension
+                        display_name = chapter
+                        if chapter.endswith('.md'):
+                            display_name = chapter[:-3]  # Remove .md extension
+                        
+                        if i == self.panel_selection and self.panel_focused:
+                            content_lines.append(f"> {display_name}")
+                        else:
+                            content_lines.append(f"  {display_name}")
             
             # Fill remaining space
             while len(content_lines) < available_lines - 3:
@@ -332,6 +443,12 @@ class StoryWriterUI:
         # Draw main content border
         if self.current_mode == "book_list":
             title = "BOOKS"
+        elif self.preview_mode and self.preview_chapter:
+            # Show preview chapter title without extension
+            chapter_title = self.preview_chapter
+            if chapter_title.endswith('.md'):
+                chapter_title = chapter_title[:-3]  # Remove .md extension
+            title = f"Preview: {chapter_title}"
         elif self.current_chapter:
             # Show chapter title without extension
             chapter_title = self.current_chapter
@@ -345,8 +462,13 @@ class StoryWriterUI:
         if self.current_mode == "book_list":
             self.draw_book_list(start_x, content_width, content_height)
         else:
-            # Display the story content
-            lines = self.main_content.split('\n')
+            # Display the story content or preview
+            if self.preview_mode and self.preview_content:
+                content_to_show = self.preview_content
+            else:
+                content_to_show = self.main_content
+                
+            lines = content_to_show.split('\n')
             display_start = max(0, self.scroll_offset)
             display_end = min(len(lines), display_start + content_height - 2)
             
@@ -361,11 +483,9 @@ class StoryWriterUI:
     def draw_book_list(self, start_x: int, content_width: int, content_height: int):
         """Draw the book list in the main content area"""
         if not self.books_list:
-            # Display "No Books" message
+            # Display "No Books" message at the top
             message = "No Books"
-            x_pos = start_x + (content_width - len(message)) // 2
-            y_pos = content_height // 2
-            print(f"\033[{y_pos};{x_pos}H{message}", end='')
+            print(f"\033[{2};{start_x + 1}H{message}", end='')
         else:
             # Display books list
             for i, book in enumerate(self.books_list):
@@ -408,7 +528,7 @@ class StoryWriterUI:
         if self.current_mode == "book_list":
             print(f"\033[{y};1H^B panel  ^N new book  ^R rename  ^D delete  ^Q quit", end='')
         elif self.current_book:
-            print(f"\033[{y};1H^B panel  ^N new chapter  ^O open book  ^Q quit", end='')
+            print(f"\033[{y};1H^B panel  ^N new chapter  ^S save  ^O open book  ^Q quit", end='')
         else:
             print(f"\033[{y};1H^B panel  ^O open book  ^Q quit", end='')
     
@@ -461,6 +581,7 @@ class StoryWriterUI:
                 self.delete_book_callback()
         elif key == 'CTRL_O' and self.current_mode != "book_list":
             # Open book list
+            self.left_panel_expanded = False  # Close side panel
             self.current_mode = "book_list"
             self.load_books()
             self.book_selection = 0
@@ -468,6 +589,10 @@ class StoryWriterUI:
         elif key == 'CTRL_N' and self.current_book:
             # Create new chapter
             self.show_input_dialog("Chapter name:", lambda name: self.create_new_chapter_callback(name))
+        elif key == 'CTRL_S':
+            # Save current chapter
+            if self.current_book and self.current_chapter:
+                self.save_current_chapter()
         elif key == 'ESC' and self.current_mode == "book_list":
             # Go back to editor mode
             self.current_mode = "editor"
@@ -477,6 +602,10 @@ class StoryWriterUI:
                 # Exit book list mode and return to side panel
                 self.current_mode = "editor"
                 self.book_focused = False
+            elif self.left_panel_expanded:
+                # When side panel is open, backspace exits to main editor
+                self.panel_focused = False
+                self.preview_mode = False  # Exit preview mode
             elif self.cursor_pos > 0:
                 self.main_content = self.main_content[:self.cursor_pos - 1] + self.main_content[self.cursor_pos:]
                 self.cursor_pos -= 1
@@ -490,7 +619,12 @@ class StoryWriterUI:
                     self.current_mode = "editor"
                     self.book_focused = False
                     self.panel_selection = 0
-                    self.panel_focused = False
+                    self.panel_focused = True  # Focus the panel when book is loaded
+                    # Show preview of first chapter if available
+                    if self.chapters_list:
+                        first_chapter = self.chapters_list[0]
+                        self.load_chapter_preview(first_chapter)
+                        self.preview_mode = True
             elif self.left_panel_expanded and self.panel_focused and self.panel_selection in self.selectable_items:
                 # Handle panel item selection
                 if self.current_book:
@@ -499,11 +633,16 @@ class StoryWriterUI:
                         # Chapter selected
                         selected_chapter = self.chapters_list[self.panel_selection]
                         self.current_chapter = selected_chapter
-                        # TODO: Load chapter content
-                        pass
+                        # Load chapter content and exit preview mode
+                        self.load_chapter(selected_chapter)
+                        self.preview_mode = False
+                        # Close side panel and return control to main editor
+                        self.left_panel_expanded = False
+                        self.panel_focused = False
                 # Return focus to editor after selection
                 self.panel_focused = False
-            else:
+            elif not self.left_panel_expanded:
+                # Only allow editing when side panel is closed
                 self.main_content = self.main_content[:self.cursor_pos] + '\n' + self.main_content[self.cursor_pos:]
                 self.cursor_pos += 1
         elif key == 'UP':
@@ -518,6 +657,11 @@ class StoryWriterUI:
                 if self.current_book and self.panel_selection > 0:
                     # Navigate chapters
                     self.panel_selection -= 1
+                    # Load preview of selected chapter
+                    if self.panel_selection < len(self.chapters_list):
+                        selected_chapter = self.chapters_list[self.panel_selection]
+                        self.load_chapter_preview(selected_chapter)
+                        self.preview_mode = True
             else:
                 # Move cursor up in main content (simplified)
                 pass
@@ -534,19 +678,25 @@ class StoryWriterUI:
                     # Navigate chapters
                     if self.panel_selection < len(self.chapters_list) - 1:
                         self.panel_selection += 1
+                        # Load preview of selected chapter
+                        if self.panel_selection < len(self.chapters_list):
+                            selected_chapter = self.chapters_list[self.panel_selection]
+                            self.load_chapter_preview(selected_chapter)
+                            self.preview_mode = True
             else:
                 # Move cursor down in main content (simplified)
                 pass
         elif key == 'LEFT':
-            if self.cursor_pos > 0:
+            if not self.left_panel_expanded and self.cursor_pos > 0:
                 self.cursor_pos -= 1
         elif key == 'RIGHT':
-            if self.cursor_pos < len(self.main_content):
+            if not self.left_panel_expanded and self.cursor_pos < len(self.main_content):
                 self.cursor_pos += 1
         elif len(key) == 1 and key.isprintable():
-            # Insert character - always goes to story editor
-            self.main_content = self.main_content[:self.cursor_pos] + key + self.main_content[self.cursor_pos:]
-            self.cursor_pos += 1
+            # Insert character - only when side panel is closed
+            if not self.left_panel_expanded:
+                self.main_content = self.main_content[:self.cursor_pos] + key + self.main_content[self.cursor_pos:]
+                self.cursor_pos += 1
             # Return focus to editor when typing
             self.panel_focused = False
             
@@ -600,6 +750,10 @@ class StoryWriterUI:
                 f.write('')  # Create empty chapter
             # Reload chapters
             self.load_book(self.current_book)
+            # Clear main content and set new chapter
+            self.main_content = ""
+            self.cursor_pos = 0
+            self.current_chapter = safe_name
         except OSError:
             pass
     
