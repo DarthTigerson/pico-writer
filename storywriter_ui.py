@@ -18,7 +18,7 @@ class StoryWriterUI:
         self.panel_focused = False  # Track if panel has focus for navigation
         
         # Book management
-        self.books_directory = "@data"
+        self.books_directory = "data"
         self.current_mode = "editor"  # "editor", "book_list"
         self.books_list = []
         self.book_selection = 0
@@ -26,6 +26,12 @@ class StoryWriterUI:
         self.input_mode = False
         self.input_text = ""
         self.input_callback = None
+        
+        # Current book and chapters
+        self.current_book = None
+        self.chapters_list = []
+        self.chapter_selection = 0
+        self.chapter_focused = False
         
         # Terminal settings for raw input
         self.old_settings = None
@@ -74,6 +80,8 @@ class StoryWriterUI:
                 return 'CTRL_R'
             elif key == '\x04':  # Ctrl+D
                 return 'CTRL_D'
+            elif key == '\x0f':  # Ctrl+O
+                return 'CTRL_O'
             elif key == '\x1b':  # Escape
                 return 'ESC'
             return key
@@ -94,6 +102,47 @@ class StoryWriterUI:
             self.books_list.sort()
         except OSError:
             self.books_list = []
+    
+    def load_book(self, book_name: str):
+        """Load a specific book and its chapters"""
+        self.current_book = book_name
+        book_path = os.path.join(self.books_directory, book_name)
+        
+        if not os.path.exists(book_path):
+            self.chapters_list = []
+            return
+        
+        # Load chapter order from hidden file
+        order_file = os.path.join(book_path, '.chapter_order')
+        chapter_order = []
+        
+        if os.path.exists(order_file):
+            try:
+                with open(order_file, 'r') as f:
+                    chapter_order = [line.strip() for line in f.readlines() if line.strip()]
+            except OSError:
+                pass
+        
+        # Get all files in the book directory (excluding hidden files)
+        try:
+            all_files = os.listdir(book_path)
+            # Filter out hidden files and directories
+            chapter_files = [f for f in all_files if not f.startswith('.') and os.path.isfile(os.path.join(book_path, f))]
+            chapter_files.sort()
+            
+            # Merge ordered chapters with remaining files
+            ordered_chapters = []
+            for chapter in chapter_order:
+                if chapter in chapter_files:
+                    ordered_chapters.append(chapter)
+                    chapter_files.remove(chapter)
+            
+            # Add remaining files
+            ordered_chapters.extend(chapter_files)
+            
+            self.chapters_list = ordered_chapters
+        except OSError:
+            self.chapters_list = []
     
     def create_new_book(self, book_name: str):
         """Create a new book directory"""
@@ -212,23 +261,43 @@ class StoryWriterUI:
         panel_width = self.left_panel_width
         panel_height = self.height - 1  # Leave room for bottom bar
         
-        # Draw the left panel border
-        self.draw_border(1, 1, panel_width, panel_height, "=BOOKS=")
+        # Draw the left panel border with book title or "BOOKS"
+        if self.current_book:
+            title = f"={self.current_book}="
+        else:
+            title = "=BOOKS="
+        self.draw_border(1, 1, panel_width, panel_height, title)
         
-        # Add some sample content to the left panel
-        content_lines = []
-        
-        # Add New Story and Settings at the bottom
+        # Add content to the left panel
         available_lines = panel_height - 2
-        if len(content_lines) < available_lines - 3:  # Leave space for bottom items
-            # Fill with empty lines if needed
+        
+        if self.current_book:
+            # Show chapters when a book is loaded
+            content_lines = []
+            for i, chapter in enumerate(self.chapters_list):
+                if i < available_lines - 3:  # Leave space for bottom items
+                    # Display chapter name without extension
+                    display_name = chapter
+                    if chapter.endswith('.md'):
+                        display_name = chapter[:-3]  # Remove .md extension
+                    
+                    if i == self.chapter_selection and self.chapter_focused:
+                        content_lines.append(f"> {display_name}")
+                    else:
+                        content_lines.append(f"  {display_name}")
+            
+            # Fill remaining space
             while len(content_lines) < available_lines - 3:
                 content_lines.append("")
             
-            # Add bottom items
-            content_lines.append("")
-            content_lines.append("Open Book")
-            content_lines.append("Settings")
+            # No bottom items needed for book view
+        else:
+            # Show default content when no book is loaded
+            content_lines = []
+            
+            # Fill with empty lines when no book is loaded
+            while len(content_lines) < available_lines - 2:
+                content_lines.append("")
         
         # Store selectable items for navigation
         self.selectable_items = []
@@ -330,8 +399,10 @@ class StoryWriterUI:
         y = self.height
         if self.current_mode == "book_list":
             print(f"\033[{y};1H^B panel  ^N new book  ^R rename  ^D delete  ^Q quit", end='')
+        elif self.current_book:
+            print(f"\033[{y};1H^B panel  ^N new chapter  ^Q quit", end='')
         else:
-            print(f"\033[{y};1H^B panel  ^Q quit", end='')
+            print(f"\033[{y};1H^B panel  ^O open book  ^Q quit", end='')
     
     def render(self):
         """Render the entire UI"""
@@ -380,6 +451,15 @@ class StoryWriterUI:
             # Delete book
             if self.books_list and self.book_selection < len(self.books_list):
                 self.delete_book_callback()
+        elif key == 'CTRL_O' and not self.current_book and self.current_mode != "book_list":
+            # Open book list
+            self.current_mode = "book_list"
+            self.load_books()
+            self.book_selection = 0
+            self.book_focused = True
+        elif key == 'CTRL_N' and self.current_book:
+            # Create new chapter
+            self.show_input_dialog("Chapter name:", lambda name: self.create_new_chapter_callback(name))
         elif key == 'ESC' and self.current_mode == "book_list":
             # Go back to editor mode
             self.current_mode = "editor"
@@ -396,31 +476,22 @@ class StoryWriterUI:
             if self.current_mode == "book_list":
                 # Handle book selection
                 if self.books_list and self.book_selection < len(self.books_list):
-                    # TODO: Open selected book
-                    pass
+                    # Load selected book
+                    selected_book = self.books_list[self.book_selection]
+                    self.load_book(selected_book)
+                    self.current_mode = "editor"
+                    self.book_focused = False
+                    self.chapter_selection = 0
+                    self.chapter_focused = False
             elif self.left_panel_expanded and self.panel_focused and self.panel_selection in self.selectable_items:
                 # Handle panel item selection
-                content_lines = []
-                
-                # Add bottom items
-                available_lines = self.height - 3
-                if len(content_lines) < available_lines - 3:
-                    while len(content_lines) < available_lines - 3:
-                        content_lines.append("")
-                    content_lines.append("")
-                    content_lines.append("Open Book")
-                    content_lines.append("Settings")
-                
-                selected_item = content_lines[self.panel_selection]
-                if selected_item == "Open Book":
-                    # Switch to book list mode
-                    self.current_mode = "book_list"
-                    self.load_books()
-                    self.book_selection = 0
-                    self.book_focused = True
-                elif selected_item == "Settings":
-                    # TODO: Implement settings
-                    pass
+                if self.current_book:
+                    # Handle chapter selection
+                    if self.panel_selection < len(self.chapters_list):
+                        # Chapter selected
+                        selected_chapter = self.chapters_list[self.panel_selection]
+                        # TODO: Load chapter content
+                        pass
                 # Return focus to editor after selection
                 self.panel_focused = False
             else:
@@ -433,11 +504,11 @@ class StoryWriterUI:
                 if self.book_selection > 0:
                     self.book_selection -= 1
             elif self.left_panel_expanded and self.selectable_items:
-                # Navigate left panel
+                # Navigate left panel (chapters only)
                 self.panel_focused = True
-                current_index = self.selectable_items.index(self.panel_selection) if self.panel_selection in self.selectable_items else 0
-                if current_index > 0:
-                    self.panel_selection = self.selectable_items[current_index - 1]
+                if self.current_book and self.panel_selection > 0:
+                    # Navigate chapters
+                    self.panel_selection -= 1
             else:
                 # Move cursor up in main content (simplified)
                 pass
@@ -448,11 +519,12 @@ class StoryWriterUI:
                 if self.book_selection < len(self.books_list) - 1:
                     self.book_selection += 1
             elif self.left_panel_expanded and self.selectable_items:
-                # Navigate left panel
+                # Navigate left panel (chapters only)
                 self.panel_focused = True
-                current_index = self.selectable_items.index(self.panel_selection) if self.panel_selection in self.selectable_items else 0
-                if current_index < len(self.selectable_items) - 1:
-                    self.panel_selection = self.selectable_items[current_index + 1]
+                if self.current_book:
+                    # Navigate chapters
+                    if self.panel_selection < len(self.chapters_list) - 1:
+                        self.panel_selection += 1
             else:
                 # Move cursor down in main content (simplified)
                 pass
@@ -495,6 +567,32 @@ class StoryWriterUI:
                 # Adjust selection if needed
                 if self.book_selection >= len(self.books_list):
                     self.book_selection = max(0, len(self.books_list) - 1)
+    
+    def create_new_chapter_callback(self, name: str):
+        """Callback for creating a new chapter"""
+        if not self.current_book or not name.strip():
+            return
+        
+        # Sanitize chapter name
+        safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_', '.')).strip()
+        if not safe_name:
+            return
+        
+        # Add .md extension if not present
+        if not safe_name.endswith('.md'):
+            safe_name += '.md'
+        
+        # Create chapter file
+        book_path = os.path.join(self.books_directory, self.current_book)
+        chapter_path = os.path.join(book_path, safe_name)
+        
+        try:
+            with open(chapter_path, 'w') as f:
+                f.write('')  # Create empty chapter
+            # Reload chapters
+            self.load_book(self.current_book)
+        except OSError:
+            pass
     
     def run(self):
         """Main application loop"""
