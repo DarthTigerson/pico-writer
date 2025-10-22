@@ -1,4 +1,4 @@
-# Pico Write
+# Pico-Writer
 This project is a Work in Progress
 
 ![Screenshot](screenshot.png)
