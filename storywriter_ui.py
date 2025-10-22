@@ -36,6 +36,12 @@ class StoryWriterUI:
         self.preview_mode = False
         self.preview_content = ""
         self.preview_chapter = None
+        self.confirm_mode = False
+        self.confirm_selection = False  # False = No, True = Yes
+        self.unsaved_changes = False
+        self.original_content = ""
+        self.confirm_type = "save"  # "save" or "unsaved"
+        self.pending_navigation = None  # Store pending navigation action
         
         # Load last book on startup
         self.load_last_book()
@@ -253,6 +259,9 @@ class StoryWriterUI:
             
             with open(chapter_path, 'w') as f:
                 f.write(self.main_content)
+            # Update original content and reset unsaved changes
+            self.original_content = self.main_content
+            self.unsaved_changes = False
             return True
         except OSError:
             return False
@@ -270,11 +279,16 @@ class StoryWriterUI:
                 with open(chapter_path, 'r') as f:
                     self.main_content = f.read()
                 self.cursor_pos = len(self.main_content)
+                # Store original content and reset unsaved changes
+                self.original_content = self.main_content
+                self.unsaved_changes = False
                 return True
             else:
                 # Chapter doesn't exist, create empty content
                 self.main_content = ""
                 self.cursor_pos = 0
+                self.original_content = ""
+                self.unsaved_changes = False
                 return True
         except OSError:
             return False
@@ -388,6 +402,50 @@ class StoryWriterUI:
                 self.input_text = self.input_text[:-1]
         elif len(key) == 1 and key.isprintable():
             self.input_text += key
+        return True
+    
+    def handle_confirm_dialog(self, key: str):
+        """Handle input in confirmation dialog"""
+        if key == 'LEFT':
+            # Move to Yes (leftmost option) - wrap around infinitely
+            self.confirm_selection = True
+        elif key == 'RIGHT':
+            # Move to No (rightmost option) - wrap around infinitely
+            self.confirm_selection = False
+        elif key == 'ENTER':
+            # Confirm selection
+            if self.confirm_selection:
+                # Yes - save the chapter
+                if self.confirm_type == "unsaved":
+                    self.save_current_chapter()
+                    self.unsaved_changes = False
+                else:
+                    self.save_current_chapter()
+            else:
+                # No - for unsaved changes, allow navigation to continue
+                if self.confirm_type == "unsaved":
+                    self.unsaved_changes = False
+                    # Execute pending navigation
+                    if self.pending_navigation == "UP" and self.panel_selection > 0:
+                        self.panel_selection -= 1
+                        if self.panel_selection < len(self.chapters_list):
+                            selected_chapter = self.chapters_list[self.panel_selection]
+                            self.load_chapter_preview(selected_chapter)
+                            self.preview_mode = True
+                    elif self.pending_navigation == "DOWN" and self.panel_selection < len(self.chapters_list) - 1:
+                        self.panel_selection += 1
+                        if self.panel_selection < len(self.chapters_list):
+                            selected_chapter = self.chapters_list[self.panel_selection]
+                            self.load_chapter_preview(selected_chapter)
+                            self.preview_mode = True
+                    self.pending_navigation = None
+            # No - do nothing
+            self.confirm_mode = False
+            self.confirm_selection = False
+        elif key == '\x1b':  # Escape
+            # Cancel - do nothing
+            self.confirm_mode = False
+            self.confirm_selection = False
         return True
     
     def clear_screen(self):
@@ -573,6 +631,48 @@ class StoryWriterUI:
         cursor_x = x + 2 + len(input_display)
         print(f"\033[{y + 3};{cursor_x}H_", end='')
     
+    def draw_confirm_dialog(self):
+        """Draw confirmation dialog in the middle of the screen"""
+        if not self.confirm_mode:
+            return
+        
+        # Calculate dialog position (middle of screen)
+        dialog_width = 30
+        dialog_height = 5
+        x = (self.width - dialog_width) // 2
+        y = (self.height - dialog_height) // 2
+        
+        # Draw dialog border
+        self.draw_border(x, y, dialog_width, dialog_height, "Confirm")
+        
+        # Draw message
+        if self.confirm_type == "unsaved":
+            message = "Unsaved changes! Save?"
+        else:
+            message = "Overwrite chapter?"
+        print(f"\033[{y + 1};{x + 2}H{message}", end='')
+        
+        # Draw options
+        yes_text = "Yes"
+        no_text = "No"
+        
+        # Calculate positions - Yes on left, No on right
+        yes_x = x + 6
+        no_x = x + 20
+        option_y = y + 3
+        
+        # Draw Yes option (left)
+        if self.confirm_selection:
+            print(f"\033[{option_y};{yes_x}H\033[7m {yes_text} \033[0m", end='')
+        else:
+            print(f"\033[{option_y};{yes_x}H {yes_text}", end='')
+        
+        # Draw No option (right)
+        if not self.confirm_selection:
+            print(f"\033[{option_y};{no_x}H\033[7m {no_text} \033[0m", end='')
+        else:
+            print(f"\033[{option_y};{no_x}H {no_text}", end='')
+    
     def draw_bottom_bar(self):
         """Draw the bottom status bar"""
         y = self.height
@@ -589,6 +689,7 @@ class StoryWriterUI:
         self.draw_left_panel()
         self.draw_main_content()
         self.draw_input_dialog()
+        self.draw_confirm_dialog()
         
         # Position cursor in main content area
         if self.left_panel_expanded:
@@ -609,6 +710,10 @@ class StoryWriterUI:
         # Handle input dialog first
         if self.input_mode:
             return self.handle_input_dialog(key)
+        
+        # Handle confirmation dialog
+        if self.confirm_mode:
+            return self.handle_confirm_dialog(key)
         
         if key == 'CTRL_Q':
             return False  # Quit
@@ -640,9 +745,11 @@ class StoryWriterUI:
             # Create new chapter
             self.show_input_dialog("Chapter name:", lambda name: self.create_new_chapter_callback(name))
         elif key == 'CTRL_S':
-            # Save current chapter
+            # Show save confirmation dialog
             if self.current_book and self.current_chapter:
-                self.save_current_chapter()
+                self.confirm_mode = True
+                self.confirm_selection = False  # Default to No
+                self.confirm_type = "save"
         elif key == 'ESC' and self.current_mode == "book_list":
             # Go back to editor mode
             self.current_mode = "editor"
@@ -659,6 +766,8 @@ class StoryWriterUI:
             elif self.cursor_pos > 0:
                 self.main_content = self.main_content[:self.cursor_pos - 1] + self.main_content[self.cursor_pos:]
                 self.cursor_pos -= 1
+                # Mark as having unsaved changes
+                self.unsaved_changes = True
         elif key == 'ENTER':
             if self.current_mode == "book_list":
                 # Handle book selection
@@ -696,6 +805,8 @@ class StoryWriterUI:
                 # Only allow editing when side panel is closed
                 self.main_content = self.main_content[:self.cursor_pos] + '\n' + self.main_content[self.cursor_pos:]
                 self.cursor_pos += 1
+                # Mark as having unsaved changes
+                self.unsaved_changes = True
         elif key == 'UP':
             if self.current_mode == "book_list" and self.books_list:
                 # Navigate book list
@@ -706,6 +817,13 @@ class StoryWriterUI:
                 # Navigate left panel (chapters only)
                 self.panel_focused = True
                 if self.current_book and self.panel_selection > 0:
+                    # Check for unsaved changes before navigating
+                    if self.unsaved_changes:
+                        self.confirm_mode = True
+                        self.confirm_selection = False  # Default to No
+                        self.confirm_type = "unsaved"
+                        self.pending_navigation = "UP"
+                        return True
                     # Navigate chapters
                     self.panel_selection -= 1
                     # Load preview of selected chapter
@@ -728,6 +846,13 @@ class StoryWriterUI:
                 if self.current_book:
                     # Navigate chapters
                     if self.panel_selection < len(self.chapters_list) - 1:
+                        # Check for unsaved changes before navigating
+                        if self.unsaved_changes:
+                            self.confirm_mode = True
+                            self.confirm_selection = False  # Default to No
+                            self.confirm_type = "unsaved"
+                            self.pending_navigation = "DOWN"
+                            return True
                         self.panel_selection += 1
                         # Load preview of selected chapter
                         if self.panel_selection < len(self.chapters_list):
@@ -748,6 +873,8 @@ class StoryWriterUI:
             if not self.left_panel_expanded:
                 self.main_content = self.main_content[:self.cursor_pos] + key + self.main_content[self.cursor_pos:]
                 self.cursor_pos += 1
+                # Mark as having unsaved changes
+                self.unsaved_changes = True
             # Return focus to editor when typing
             self.panel_focused = False
             
