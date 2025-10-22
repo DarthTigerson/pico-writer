@@ -511,8 +511,12 @@ class StoryWriterUI:
         print(f"\033[{close_y};{x + 2}H\033[1mPress ESC or Ctrl+H to close\033[0m", end='')
     
     def clear_screen(self):
-        """Clear the terminal screen"""
-        print('\033[2J\033[H', end='')
+        """Clear the terminal screen with background color"""
+        # Clear screen and set background color
+        print('\033[2J\033[H\033[40m', end='')
+        # Fill entire screen with background color
+        for row in range(1, self.height + 1):
+            print(f"\033[{row};1H{' ' * self.width}", end='')
         
     def draw_border(self, x: int, y: int, width: int, height: int, title: str = ""):
         """Draw a border box at the specified position"""
@@ -540,6 +544,10 @@ class StoryWriterUI:
             
         panel_width = self.left_panel_width
         panel_height = self.height  # Use full height since no bottom bar
+        
+        # Draw panel background with color
+        for row in range(2, panel_height):
+            print(f"\033[{row};2H\033[47m{' ' * (panel_width - 2)}", end='')
         
         # Draw the left panel border with book title or "BOOKS"
         if self.current_book:
@@ -599,7 +607,8 @@ class StoryWriterUI:
                 if i == self.panel_selection and i in self.selectable_items:
                     print(f"\033[{2 + i};3H\033[7m {line} \033[0m", end='')  # Reversed colors
                 else:
-                    print(f"\033[{2 + i};3H{line}", end='')
+                    # Draw with white background for unselected items
+                    print(f"\033[{2 + i};3H\033[47m {line} \033[0m", end='')
     
     def draw_main_content(self):
         """Draw the main writing area"""
@@ -610,6 +619,10 @@ class StoryWriterUI:
             
         content_width = self.width - start_x
         content_height = self.height  # Use full height since no bottom bar
+        
+        # Draw main content background with color
+        for row in range(2, content_height):
+            print(f"\033[{row};{start_x + 1}H\033[47m{' ' * (content_width - 2)}", end='')
         
         # Draw main content border
         if self.current_mode == "book_list":
@@ -678,6 +691,10 @@ class StoryWriterUI:
         x = (self.width - dialog_width) // 2
         y = (self.height - dialog_height) // 2
         
+        # Draw dialog background with color
+        for row in range(y + 1, y + dialog_height - 1):
+            print(f"\033[{row};{x + 1}H\033[47m{' ' * (dialog_width - 2)}", end='')
+        
         # Draw dialog border
         self.draw_border(x, y, dialog_width, dialog_height, "Input")
         
@@ -703,6 +720,10 @@ class StoryWriterUI:
         dialog_height = 5
         x = (self.width - dialog_width) // 2
         y = (self.height - dialog_height) // 2
+        
+        # Draw dialog background with color
+        for row in range(y + 1, y + dialog_height - 1):
+            print(f"\033[{row};{x + 1}H\033[47m{' ' * (dialog_width - 2)}", end='')
         
         # Draw dialog border
         self.draw_border(x, y, dialog_width, dialog_height, "Confirm")
@@ -795,10 +816,21 @@ class StoryWriterUI:
         elif key == 'CTRL_N' and self.current_mode == "book_list":
             # Create new book
             self.show_input_dialog("Book name:", lambda name: self.create_new_book_callback(name))
-        elif key == 'CTRL_R' and self.current_mode == "book_list":
-            # Rename book
-            if self.books_list and self.book_selection < len(self.books_list):
-                self.show_input_dialog("New name:", lambda name: self.rename_book_callback(name))
+        elif key == 'CTRL_R':
+            if self.current_mode == "book_list":
+                # Rename book
+                if self.books_list and self.book_selection < len(self.books_list):
+                    selected_book = self.books_list[self.book_selection]
+                    self.show_input_dialog(f"Rename book '{selected_book}':", lambda name: self.rename_book_callback(selected_book, name))
+            elif self.current_book and self.current_chapter:
+                # Rename current chapter
+                chapter_name = self.current_chapter.replace('.md', '')
+                self.show_input_dialog(f"Rename chapter '{chapter_name}':", lambda name: self.rename_chapter_callback(self.current_chapter, name))
+            elif self.left_panel_expanded and self.current_book and self.chapters_list and self.panel_selection < len(self.chapters_list):
+                # Rename selected chapter in side panel
+                selected_chapter = self.chapters_list[self.panel_selection]
+                chapter_name = selected_chapter.replace('.md', '')
+                self.show_input_dialog(f"Rename chapter '{chapter_name}':", lambda name: self.rename_chapter_callback(selected_chapter, name))
         elif key == 'CTRL_D' and self.current_mode == "book_list":
             # Delete book
             if self.books_list and self.book_selection < len(self.books_list):
@@ -935,11 +967,13 @@ class StoryWriterUI:
                 # Move cursor down in main content (simplified)
                 pass
         elif key == 'LEFT':
-            if not self.left_panel_expanded and self.cursor_pos > 0:
-                self.cursor_pos -= 1
+            if not self.left_panel_expanded or not self.panel_focused:
+                if self.cursor_pos > 0:
+                    self.cursor_pos -= 1
         elif key == 'RIGHT':
-            if not self.left_panel_expanded and self.cursor_pos < len(self.main_content):
-                self.cursor_pos += 1
+            if not self.left_panel_expanded or not self.panel_focused:
+                if self.cursor_pos < len(self.main_content):
+                    self.cursor_pos += 1
         elif len(key) == 1 and key.isprintable():
             # Insert character - only when side panel is closed
             if not self.left_panel_expanded:
@@ -976,6 +1010,64 @@ class StoryWriterUI:
                 # Adjust selection if needed
                 if self.book_selection >= len(self.books_list):
                     self.book_selection = max(0, len(self.books_list) - 1)
+    
+    def rename_chapter_callback(self, old_chapter: str, new_name: str):
+        """Callback for renaming a chapter"""
+        if not new_name.strip():
+            return
+        
+        # Sanitize the new name
+        safe_name = "".join(c for c in new_name.strip() if c.isalnum() or c in " -_")
+        if not safe_name:
+            return
+        
+        # Add .md extension if not present
+        if not safe_name.endswith('.md'):
+            safe_name += '.md'
+        
+        try:
+            book_path = os.path.join(self.books_directory, self.current_book)
+            old_path = os.path.join(book_path, old_chapter)
+            new_path = os.path.join(book_path, safe_name)
+            
+            # Rename the file
+            os.rename(old_path, new_path)
+            
+            # Update chapter order file
+            self.update_chapter_order(old_chapter, safe_name)
+            
+            # Reload the book to refresh the chapter list
+            self.load_book(self.current_book)
+            
+            # If we renamed the current chapter, update current_chapter
+            if self.current_chapter == old_chapter:
+                self.current_chapter = safe_name
+                
+        except OSError:
+            pass  # Handle rename errors silently
+    
+    def update_chapter_order(self, old_name: str, new_name: str):
+        """Update the chapter order file when a chapter is renamed"""
+        if not self.current_book:
+            return
+        
+        try:
+            book_path = os.path.join(self.books_directory, self.current_book)
+            order_file = os.path.join(book_path, '.chapter_order')
+            
+            if os.path.exists(order_file):
+                with open(order_file, 'r') as f:
+                    chapters = [line.strip() for line in f.readlines() if line.strip()]
+                
+                # Replace old name with new name
+                if old_name in chapters:
+                    chapters[chapters.index(old_name)] = new_name
+                    
+                    with open(order_file, 'w') as f:
+                        for chapter in chapters:
+                            f.write(chapter + '\n')
+        except OSError:
+            pass  # Handle file errors silently
     
     def create_new_chapter_callback(self, name: str):
         """Callback for creating a new chapter"""
