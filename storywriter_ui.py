@@ -42,6 +42,7 @@ class StoryWriterUI:
         self.original_content = ""
         self.confirm_type = "save"  # "save" or "unsaved"
         self.pending_navigation = None  # Store pending navigation action
+        self.help_mode = False
         
         # Load last book on startup
         self.load_last_book()
@@ -97,9 +98,12 @@ class StoryWriterUI:
                 return 'CTRL_O'
             elif key == '\x13':  # Ctrl+S
                 return 'CTRL_S'
+            elif key == '\x08':  # Ctrl+H
+                return 'CTRL_H'
             elif key == '\x1b':  # Escape
                 return 'ESC'
-            return key
+            else:
+                return key
         finally:
             self.disable_raw_mode()
     
@@ -448,6 +452,64 @@ class StoryWriterUI:
             self.confirm_selection = False
         return True
     
+    def draw_help_panel(self):
+        """Draw the help panel overlay"""
+        if not self.help_mode:
+            return
+        
+        # Calculate panel dimensions
+        panel_width = min(80, self.width - 4)
+        panel_height = min(30, self.height - 4)
+        x = (self.width - panel_width) // 2
+        y = (self.height - panel_height) // 2
+        
+        # Draw help panel border
+        self.draw_border(x, y, panel_width, panel_height, "Help")
+        
+        # Fill help panel background with solid color
+        for row in range(y + 1, y + panel_height - 1):
+            for col in range(x + 1, x + panel_width - 1):
+                print(f"\033[{row};{col}H\033[40m ", end='')
+        
+        # Help content
+        help_lines = [
+            "GENERAL COMMANDS:",
+            "  Ctrl+H    - Toggle this help panel",
+            "  Ctrl+O    - Open book selection",
+            "  Ctrl+N    - New book (in book list) or New chapter (in book)",
+            "  Ctrl+R    - Rename book (in book list)",
+            "  Ctrl+D    - Delete book (in book list)",
+            "  Ctrl+S    - Save current chapter",
+            "  ESC       - Close dialogs/panels",
+            "",
+            "NAVIGATION:",
+            "  ↑/↓       - Navigate lists and chapters",
+            "  ←/→       - Move cursor in editor",
+            "  Enter     - Select item or insert newline",
+            "  Backspace - Delete character or exit panels",
+            "",
+            "EDITING:",
+            "  Type      - Insert text at cursor",
+            "  Enter     - Insert newline",
+            "  Backspace - Delete character before cursor",
+            "",
+            "NOTES:",
+            "  • Unsaved changes block chapter navigation",
+            "  • Use Ctrl+O to switch between books",
+            "  • Chapters are saved as .md files",
+            "  • Books are stored in the data/ directory"
+        ]
+        
+        # Draw help content
+        content_y = y + 2
+        for i, line in enumerate(help_lines):
+            if content_y + i < y + panel_height - 1:
+                print(f"\033[{content_y + i};{x + 2}H{line}", end='')
+        
+        # Draw close instruction at bottom
+        close_y = y + panel_height - 2
+        print(f"\033[{close_y};{x + 2}H\033[1mPress ESC or Ctrl+H to close\033[0m", end='')
+    
     def clear_screen(self):
         """Clear the terminal screen"""
         print('\033[2J\033[H', end='')
@@ -690,6 +752,7 @@ class StoryWriterUI:
         self.draw_main_content()
         self.draw_input_dialog()
         self.draw_confirm_dialog()
+        self.draw_help_panel()
         
         # Position cursor in main content area
         if self.left_panel_expanded:
@@ -707,6 +770,12 @@ class StoryWriterUI:
     
     def handle_input(self, key: str):
         """Handle keyboard input"""
+        # Handle help panel first
+        if self.help_mode:
+            if key == 'ESC' or key == 'CTRL_H':
+                self.help_mode = False
+            return True
+        
         # Handle input dialog first
         if self.input_mode:
             return self.handle_input_dialog(key)
@@ -750,6 +819,9 @@ class StoryWriterUI:
                 self.confirm_mode = True
                 self.confirm_selection = False  # Default to No
                 self.confirm_type = "save"
+        elif key == 'CTRL_H':
+            # Toggle help panel
+            self.help_mode = not self.help_mode
         elif key == 'ESC' and self.current_mode == "book_list":
             # Go back to editor mode
             self.current_mode = "editor"
