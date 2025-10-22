@@ -473,7 +473,7 @@ class StoryWriterUI:
         # Fill help panel background with solid color
         for row in range(y + 1, y + panel_height - 1):
             for col in range(x + 1, x + panel_width - 1):
-                print(f"\033[{row};{col}H\033[40m ", end='')
+                print(f"\033[{row};{col}H\033[7m ", end='')
         
         # Help content
         help_lines = [
@@ -551,7 +551,7 @@ class StoryWriterUI:
         
         # Draw panel background with color
         for row in range(2, panel_height):
-            print(f"\033[{row};2H\033[47m{' ' * (panel_width - 2)}", end='')
+            print(f"\033[{row};2H\033[7m{' ' * (panel_width - 2)}", end='')
         
         # Draw the left panel border with book title or "BOOKS"
         if self.current_book:
@@ -611,8 +611,8 @@ class StoryWriterUI:
                 if i == self.panel_selection and i in self.selectable_items:
                     print(f"\033[{2 + i};3H\033[7m {line} \033[0m", end='')  # Reversed colors
                 else:
-                    # Draw with white background for unselected items
-                    print(f"\033[{2 + i};3H\033[47m {line} \033[0m", end='')
+                    # Draw with reversed background for unselected items
+                    print(f"\033[{2 + i};3H\033[7m {line} \033[0m", end='')
     
     def draw_main_content(self):
         """Draw the main writing area"""
@@ -629,7 +629,7 @@ class StoryWriterUI:
         
         # Draw main content background with color
         for row in range(2, content_height):
-            print(f"\033[{row};{start_x + 1}H\033[47m{' ' * (content_width - 2)}", end='')
+            print(f"\033[{row};{start_x + 1}H\033[7m{' ' * (content_width - 2)}", end='')
         
         # Draw main content border
         if self.current_mode == "book_list":
@@ -723,7 +723,7 @@ class StoryWriterUI:
         
         # Draw dialog background with color
         for row in range(y + 1, y + dialog_height - 1):
-            print(f"\033[{row};{x + 1}H\033[47m{' ' * (dialog_width - 2)}", end='')
+            print(f"\033[{row};{x + 1}H\033[7m{' ' * (dialog_width - 2)}", end='')
         
         # Draw dialog border
         self.draw_border(x, y, dialog_width, dialog_height, "Input")
@@ -753,7 +753,7 @@ class StoryWriterUI:
         
         # Draw dialog background with color
         for row in range(y + 1, y + dialog_height - 1):
-            print(f"\033[{row};{x + 1}H\033[47m{' ' * (dialog_width - 2)}", end='')
+            print(f"\033[{row};{x + 1}H\033[7m{' ' * (dialog_width - 2)}", end='')
         
         # Draw dialog border
         self.draw_border(x, y, dialog_width, dialog_height, "Confirm")
@@ -774,17 +774,17 @@ class StoryWriterUI:
         no_x = x + 20
         option_y = y + 3
         
-        # Draw Yes option (left)
+        # Draw Yes option (left) with arrow indicator
         if self.confirm_selection:
-            print(f"\033[{option_y};{yes_x}H\033[7m {yes_text} \033[0m", end='')
+            print(f"\033[{option_y};{yes_x}H\033[7m> {yes_text} \033[0m", end='')
         else:
-            print(f"\033[{option_y};{yes_x}H {yes_text}", end='')
+            print(f"\033[{option_y};{yes_x}H\033[7m  {yes_text} \033[0m", end='')
         
-        # Draw No option (right)
+        # Draw No option (right) with arrow indicator
         if not self.confirm_selection:
-            print(f"\033[{option_y};{no_x}H\033[7m {no_text} \033[0m", end='')
+            print(f"\033[{option_y};{no_x}H\033[7m> {no_text} \033[0m", end='')
         else:
-            print(f"\033[{option_y};{no_x}H {no_text}", end='')
+            print(f"\033[{option_y};{no_x}H\033[7m  {no_text} \033[0m", end='')
     
     def draw_bottom_bar(self):
         """Draw the bottom status bar"""
@@ -966,8 +966,9 @@ class StoryWriterUI:
                         self.load_chapter_preview(selected_chapter)
                         self.preview_mode = True
             else:
-                # Move cursor up in main content (simplified)
-                pass
+                # Move cursor up in main content
+                if not self.left_panel_expanded:
+                    self.move_cursor_up()
         elif key == 'DOWN':
             if self.current_mode == "book_list" and self.books_list:
                 # Navigate book list
@@ -994,8 +995,9 @@ class StoryWriterUI:
                             self.load_chapter_preview(selected_chapter)
                             self.preview_mode = True
             else:
-                # Move cursor down in main content (simplified)
-                pass
+                # Move cursor down in main content
+                if not self.left_panel_expanded:
+                    self.move_cursor_down()
         elif key == 'LEFT':
             if not self.left_panel_expanded or not self.panel_focused:
                 if self.cursor_pos > 0:
@@ -1015,6 +1017,37 @@ class StoryWriterUI:
             self.panel_focused = False
             
         return True
+    
+    def move_cursor_up(self):
+        """Move cursor up one line in the content"""
+        lines = self.main_content[:self.cursor_pos].split('\n')
+        if len(lines) > 1:  # Not on first line
+            # Get current line length
+            current_line_length = len(lines[-1])
+            # Get previous line length
+            previous_line_length = len(lines[-2])
+            # Calculate new cursor position
+            new_pos = self.cursor_pos - current_line_length - 1  # -1 for newline
+            # Adjust to not exceed previous line length
+            new_pos = min(new_pos + previous_line_length, new_pos + current_line_length)
+            self.cursor_pos = max(0, new_pos)
+    
+    def move_cursor_down(self):
+        """Move cursor down one line in the content"""
+        lines = self.main_content.split('\n')
+        current_lines = self.main_content[:self.cursor_pos].split('\n')
+        current_line_index = len(current_lines) - 1
+        
+        if current_line_index < len(lines) - 1:  # Not on last line
+            # Get current line length
+            current_line_length = len(current_lines[-1])
+            # Get next line length
+            next_line_length = len(lines[current_line_index + 1])
+            # Calculate new cursor position
+            new_pos = self.cursor_pos + current_line_length + 1  # +1 for newline
+            # Adjust to not exceed next line length
+            new_pos = min(new_pos + next_line_length, new_pos + current_line_length)
+            self.cursor_pos = min(len(self.main_content), new_pos)
     
     def create_new_book_callback(self, name: str):
         """Callback for creating a new book"""
