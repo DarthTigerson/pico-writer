@@ -620,6 +620,9 @@ class StoryWriterUI:
         content_width = self.width - start_x
         content_height = self.height  # Use full height since no bottom bar
         
+        # Adjust content width to account for border
+        display_width = content_width - 2  # Subtract 2 for left and right borders
+        
         # Draw main content background with color
         for row in range(2, content_height):
             print(f"\033[{row};{start_x + 1}H\033[47m{' ' * (content_width - 2)}", end='')
@@ -656,12 +659,35 @@ class StoryWriterUI:
             display_start = max(0, self.scroll_offset)
             display_end = min(len(lines), display_start + content_height - 2)
             
+            # Process lines with word wrapping
+            wrapped_lines = []
+            for line in lines:
+                if len(line) <= display_width:
+                    wrapped_lines.append(line)
+                else:
+                    # Word wrapping that preserves the original line structure
+                    words = line.split(' ')
+                    current_line = ''
+                    for word in words:
+                        if len(current_line + ' ' + word) <= display_width:
+                            if current_line:
+                                current_line += ' ' + word
+                            else:
+                                current_line = word
+                        else:
+                            if current_line:
+                                wrapped_lines.append(current_line)
+                            current_line = word
+                    if current_line:
+                        wrapped_lines.append(current_line)
+            
+            # Display wrapped lines
+            display_start = max(0, self.scroll_offset)
+            display_end = min(len(wrapped_lines), display_start + content_height - 2)
+            
             for i, line_idx in enumerate(range(display_start, display_end)):
-                if line_idx < len(lines):
-                    line = lines[line_idx]
-                    # Truncate line if too long
-                    if len(line) > content_width - 2:
-                        line = line[:content_width - 5] + "..."
+                if line_idx < len(wrapped_lines):
+                    line = wrapped_lines[line_idx]
                     print(f"\033[{2 + i};{start_x + 1}H{line}", end='')
     
     def draw_book_list(self, start_x: int, content_width: int, content_height: int):
