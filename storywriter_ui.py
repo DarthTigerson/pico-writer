@@ -76,6 +76,9 @@ class StoryWriterUI:
                     return 'RIGHT'
                 elif next_key == '[D':
                     return 'LEFT'
+                else:
+                    # Standalone escape key
+                    return 'ESC'
             elif key == '\t':
                 return 'TAB'
             elif key == '\r':
@@ -183,6 +186,12 @@ class StoryWriterUI:
             ordered_chapters.extend(chapter_files)
             
             self.chapters_list = ordered_chapters
+            
+            # Set panel selection to current chapter if it exists
+            if self.current_chapter and self.current_chapter in self.chapters_list:
+                self.panel_selection = self.chapters_list.index(self.current_chapter)
+            else:
+                self.panel_selection = 0
             
             # Clear main content if no chapters exist
             if not self.chapters_list:
@@ -400,7 +409,7 @@ class StoryWriterUI:
             self.input_mode = False
             self.input_text = ""
             self.input_callback = None
-        elif key == '\x1b':  # Escape
+        elif key == 'ESC':  # Escape
             # Cancel input
             self.input_mode = False
             self.input_text = ""
@@ -450,7 +459,7 @@ class StoryWriterUI:
             # No - do nothing
             self.confirm_mode = False
             self.confirm_selection = False
-        elif key == '\x1b':  # Escape
+        elif key == 'ESC':  # Escape
             # Cancel - do nothing
             self.confirm_mode = False
             self.confirm_selection = False
@@ -843,6 +852,9 @@ class StoryWriterUI:
             self.left_panel_width = max(20, self.width // 4)
             # Reset panel focus when toggling
             self.panel_focused = False
+            # Set panel selection to current chapter when opening side panel
+            if self.left_panel_expanded and self.current_chapter and self.current_chapter in self.chapters_list:
+                self.panel_selection = self.chapters_list.index(self.current_chapter)
         elif key == 'CTRL_N' and self.current_mode == "book_list":
             # Create new book
             self.show_input_dialog("Book name:", lambda name: self.create_new_book_callback(name))
@@ -851,16 +863,11 @@ class StoryWriterUI:
                 # Rename book
                 if self.books_list and self.book_selection < len(self.books_list):
                     selected_book = self.books_list[self.book_selection]
-                    self.show_input_dialog(f"Rename book '{selected_book}':", lambda name: self.rename_book_callback(selected_book, name))
-            elif self.current_book and self.current_chapter:
-                # Rename current chapter
+                    self.show_input_dialog(f"Rename book '{selected_book}':", lambda name: self.rename_book_callback(name))
+            elif not self.left_panel_expanded and self.current_book and self.current_chapter:
+                # Rename current chapter (only when side panel is closed)
                 chapter_name = self.current_chapter.replace('.md', '')
                 self.show_input_dialog(f"Rename chapter '{chapter_name}':", lambda name: self.rename_chapter_callback(self.current_chapter, name))
-            elif self.left_panel_expanded and self.current_book and self.chapters_list and self.panel_selection < len(self.chapters_list):
-                # Rename selected chapter in side panel
-                selected_chapter = self.chapters_list[self.panel_selection]
-                chapter_name = selected_chapter.replace('.md', '')
-                self.show_input_dialog(f"Rename chapter '{chapter_name}':", lambda name: self.rename_chapter_callback(selected_chapter, name))
         elif key == 'CTRL_D' and self.current_mode == "book_list":
             # Delete book
             if self.books_list and self.book_selection < len(self.books_list):
