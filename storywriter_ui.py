@@ -189,11 +189,15 @@ class StoryWriterUI:
                 self.main_content = ""
                 self.cursor_pos = 0
                 self.current_chapter = None
+                self.preview_content = ""
+                self.preview_mode = False
         except OSError:
             self.chapters_list = []
             # Clear main content on error
             self.main_content = ""
             self.cursor_pos = 0
+            self.preview_content = ""
+            self.preview_mode = False
             self.current_chapter = None
     
     def save_last_book(self, book_name: str):
