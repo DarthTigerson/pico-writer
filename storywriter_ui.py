@@ -755,16 +755,16 @@ class StoryWriterUI:
         if not self.books_list:
             # Display "No Books" message at the top
             message = "No Books"
-            print(f"\033[{2};{start_x + 1}H{message}", end='')
+            print(f"\033[{2};{start_x + 2}H{message}", end='')
         else:
             # Display books list
             for i, book in enumerate(self.books_list):
                 if i < content_height - 2:  # Leave room for border
                     # Show arrow for selected book
                     if i == self.book_selection and self.book_focused:
-                        print(f"\033[{2 + i};{start_x + 1}H> {book}", end='')
+                        print(f"\033[{2 + i};{start_x + 2}H> {book}", end='')
                     else:
-                        print(f"\033[{2 + i};{start_x + 1}H  {book}", end='')
+                        print(f"\033[{2 + i};{start_x + 2}H  {book}", end='')
     
     def draw_input_dialog(self):
         """Draw input dialog in the middle of the screen"""
@@ -994,7 +994,7 @@ class StoryWriterUI:
                 # Rename book
                 if self.books_list and self.book_selection < len(self.books_list):
                     selected_book = self.books_list[self.book_selection]
-                    self.show_input_dialog(f"Rename book '{selected_book}':", lambda name: self.rename_book_callback(name))
+                    self.show_input_dialog("New name:", lambda name: self.rename_book_callback(name), old_name=selected_book)
             elif not self.left_panel_expanded and self.current_book and self.current_chapter:
                 # Rename current chapter (only when side panel is closed)
                 chapter_name = self.current_chapter.replace('.md', '')
