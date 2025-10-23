@@ -524,30 +524,15 @@ class StoryWriterUI:
         # Help content
         help_lines = [
             "GENERAL COMMANDS:",
-            "  Ctrl+H    - Toggle this help panel",
-            "  Ctrl+O    - Open book selection",
-            "  Ctrl+N    - New book (in book list) or New chapter (in book)",
-            "  Ctrl+R    - Rename book (in book list)",
-            "  Ctrl+D    - Delete book (in book list)",
-            "  Ctrl+S    - Save current chapter",
-            "  ESC       - Close dialogs/panels",
-            "",
-            "NAVIGATION:",
-            "  ↑/↓       - Navigate lists and chapters",
-            "  ←/→       - Move cursor in editor",
-            "  Enter     - Select item or insert newline",
-            "  Backspace - Delete character or exit panels",
-            "",
-            "EDITING:",
-            "  Type      - Insert text at cursor",
-            "  Enter     - Insert newline",
-            "  Backspace - Delete character before cursor",
-            "",
-            "NOTES:",
-            "  • Unsaved changes block chapter navigation",
-            "  • Use Ctrl+O to switch between books",
-            "  • Chapters are saved as .md files",
-            "  • Books are stored in the data/ directory"
+            "  ^H    - Toggle this help panel",
+            "  ^B    - Toggle side panel",
+            "  ^O    - Open book selection",
+            "  ^N    - New book/chapter",
+            "  ^R    - Rename book",
+            "  ^D    - Delete book",
+            "  ^S    - Save current chapter",
+            "  Enter - Select item",
+            "  ESC   - Close dialogs/panels"
         ]
         
         # Draw help content
