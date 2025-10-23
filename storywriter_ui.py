@@ -557,14 +557,24 @@ class StoryWriterUI:
         
     def draw_border(self, x: int, y: int, width: int, height: int, title: str = ""):
         """Draw a border box at the specified position"""
-        # Top border
-        print(f"\033[{y};{x}H╔{'═' * (width - 2)}╗", end='')
-        
-        # Title if provided
         if title:
-            title_x = x + 2
-            title_y = y
-            print(f"\033[{title_y};{title_x}H{title}", end='')
+            # Draw top border with integrated title
+            title_len = len(title)
+            if title_len >= width - 2:
+                # Title too long, truncate it
+                title = title[:width - 2]
+                title_len = len(title)
+            
+            # Calculate padding to center title
+            total_padding = width - 2 - title_len
+            left_padding = total_padding // 2
+            right_padding = total_padding - left_padding
+            
+            top_border = f"╔{'═' * left_padding}{title}{'═' * right_padding}╗"
+            print(f"\033[{y};{x}H{top_border}", end='')
+        else:
+            # Top border without title
+            print(f"\033[{y};{x}H╔{'═' * (width - 2)}╗", end='')
         
         # Side borders and content area
         for i in range(1, height - 1):
@@ -588,9 +598,9 @@ class StoryWriterUI:
         
         # Draw the left panel border with book title or "BOOKS"
         if self.current_book:
-            title = f"={self.current_book}="
+            title = self.current_book
         else:
-            title = "=BOOKS="
+            title = "BOOKS"
         self.draw_border(1, 1, panel_width, panel_height, title)
         
         # Add content to the left panel
@@ -857,8 +867,9 @@ class StoryWriterUI:
     
     def draw_cursor(self):
         """Draw cursor at the correct position, accounting for text wrapping"""
+        # Only show cursor when side panel is closed (edit mode)
         if self.left_panel_expanded:
-            start_x = self.left_panel_width + 2
+            return  # Don't draw cursor in view mode
         else:
             start_x = 2
             
@@ -894,8 +905,14 @@ class StoryWriterUI:
             
         cursor_y = 2 + display_line
         
-        # Draw cursor as a blinking block
-        print(f"\033[{cursor_y};{cursor_x}H\033[5m\033[7m \033[0m", end='')
+        # Draw cursor as a blinking block that highlights the character at that position
+        # Get the character at cursor position
+        if self.cursor_pos < len(self.main_content):
+            char_at_cursor = self.main_content[self.cursor_pos]
+        else:
+            char_at_cursor = ' '  # Space if at end of content
+        
+        print(f"\033[{cursor_y};{cursor_x}H\033[5m\033[7m{char_at_cursor}\033[0m", end='')
     
     def calculate_wrapped_lines_for_display(self, text, display_width):
         """Calculate how many display lines a text line will take when wrapped (matches display logic)"""
