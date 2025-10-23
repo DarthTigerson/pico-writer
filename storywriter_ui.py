@@ -150,6 +150,7 @@ class StoryWriterUI:
         """Load a specific book and its chapters"""
         self.current_book = book_name
         self.current_chapter = None  # Clear current chapter when loading new book
+        self.unsaved_changes = False  # Reset unsaved changes when loading new book
         self.save_last_book(book_name)  # Save the current book
         book_path = os.path.join(self.books_directory, book_name)
         
@@ -244,6 +245,9 @@ class StoryWriterUI:
                         self.load_book(book_order[0])
                         self.panel_focused = True  # Focus panel when auto-loading book
                         self.left_panel_expanded = True  # Always open side panel when book is loaded
+                        # Set panel selection to current chapter if it exists
+                        if self.current_chapter and self.current_chapter in self.chapters_list:
+                            self.panel_selection = self.chapters_list.index(self.current_chapter)
                         # Show preview of first chapter if available
                         if self.chapters_list:
                             first_chapter = self.chapters_list[0]
@@ -299,6 +303,10 @@ class StoryWriterUI:
                 # Store original content and reset unsaved changes
                 self.original_content = self.main_content
                 self.unsaved_changes = False
+                self.current_chapter = chapter_name
+                # Set panel selection to this chapter if side panel is open
+                if self.left_panel_expanded and chapter_name in self.chapters_list:
+                    self.panel_selection = self.chapters_list.index(chapter_name)
                 return True
             else:
                 # Chapter doesn't exist, create empty content
@@ -306,6 +314,10 @@ class StoryWriterUI:
                 self.cursor_pos = 0
                 self.original_content = ""
                 self.unsaved_changes = False
+                self.current_chapter = chapter_name
+                # Set panel selection to this chapter if side panel is open
+                if self.left_panel_expanded and chapter_name in self.chapters_list:
+                    self.panel_selection = self.chapters_list.index(chapter_name)
                 return True
         except OSError:
             return False
@@ -417,12 +429,13 @@ class StoryWriterUI:
         except OSError:
             return False
     
-    def show_input_dialog(self, prompt: str, callback):
+    def show_input_dialog(self, prompt: str, callback, old_name: str = None):
         """Show input dialog for book naming"""
         self.input_mode = True
         self.input_text = ""
         self.input_callback = callback
         self.input_prompt = prompt
+        self.old_name = old_name
     
     def handle_input_dialog(self, key: str):
         """Handle input in dialog mode"""
@@ -760,7 +773,7 @@ class StoryWriterUI:
         
         # Calculate dialog position (middle of screen)
         dialog_width = 40
-        dialog_height = 3  # Reduced from 4 to 3
+        dialog_height = 3  # Reduced - no prompt needed for rename
         x = (self.width - dialog_width) // 2
         y = (self.height - dialog_height) // 2
         
@@ -768,8 +781,10 @@ class StoryWriterUI:
         for row in range(y + 1, y + dialog_height - 1):
             print(f"\033[{row};{x + 1}H\033[7m{' ' * (dialog_width - 2)}", end='')
         
-        # Determine title based on prompt
-        if "Chapter name:" in self.input_prompt:
+        # Determine title based on prompt and old name
+        if hasattr(self, 'old_name') and self.old_name:
+            title = f"Rename: {self.old_name}"
+        elif "Chapter name:" in self.input_prompt:
             title = "Chapter name"
         elif "Book name:" in self.input_prompt:
             title = "Book name"
@@ -783,16 +798,18 @@ class StoryWriterUI:
         
         # Draw prompt (only if it's not redundant with the title)
         if not ("Chapter name:" in self.input_prompt and title == "Chapter name"):
-            prompt = self.input_prompt[:dialog_width - 4]
-            print(f"\033[{y + 1};{x + 2}H{prompt}", end='')
+            if not (hasattr(self, 'old_name') and self.old_name):
+                # Only show prompt for non-rename dialogs
+                prompt = self.input_prompt[:dialog_width - 4]
+                print(f"\033[{y + 1};{x + 2}H{prompt}", end='')
         
         # Draw input text
         input_display = self.input_text[:dialog_width - 4]
-        print(f"\033[{y + 1};{x + 2}H{input_display}", end='')  # Changed from y + 2 to y + 1
+        print(f"\033[{y + 1};{x + 2}H{input_display}", end='')  # Input text on first content line
         
         # Draw cursor
         cursor_x = x + 2 + len(input_display)
-        print(f"\033[{y + 1};{cursor_x}H_", end='')  # Changed from y + 2 to y + 1
+        print(f"\033[{y + 1};{cursor_x}H_", end='')  # Cursor on input text line
     
     def draw_confirm_dialog(self):
         """Draw confirmation dialog in the middle of the screen"""
@@ -961,11 +978,14 @@ class StoryWriterUI:
             self.left_panel_expanded = not self.left_panel_expanded
             # Recalculate panel width when toggling
             self.left_panel_width = max(17, self.width // 4 - 3)
-            # Reset panel focus when toggling
-            self.panel_focused = False
-            # Set panel selection to current chapter when opening side panel
-            if self.left_panel_expanded and self.current_chapter and self.current_chapter in self.chapters_list:
-                self.panel_selection = self.chapters_list.index(self.current_chapter)
+            # Set panel focus when opening side panel
+            if self.left_panel_expanded:
+                self.panel_focused = True
+                # Set panel selection to current chapter when opening side panel
+                if self.current_chapter and self.current_chapter in self.chapters_list:
+                    self.panel_selection = self.chapters_list.index(self.current_chapter)
+            else:
+                self.panel_focused = False
         elif key == 'CTRL_N' and self.current_mode == "book_list":
             # Create new book
             self.show_input_dialog("Book name:", lambda name: self.create_new_book_callback(name))
@@ -978,7 +998,7 @@ class StoryWriterUI:
             elif not self.left_panel_expanded and self.current_book and self.current_chapter:
                 # Rename current chapter (only when side panel is closed)
                 chapter_name = self.current_chapter.replace('.md', '')
-                self.show_input_dialog(f"Rename chapter '{chapter_name}':", lambda name: self.rename_chapter_callback(self.current_chapter, name))
+                self.show_input_dialog("New name:", lambda name: self.rename_chapter_callback(self.current_chapter, name), old_name=chapter_name)
         elif key == 'CTRL_D':
             if self.current_mode == "book_list":
                 # Delete book
@@ -1037,7 +1057,11 @@ class StoryWriterUI:
                     self.load_book(selected_book)
                     self.current_mode = "editor"
                     self.book_focused = False
-                    self.panel_selection = 0
+                    # Set panel selection to current chapter if it exists, otherwise first chapter
+                    if self.current_chapter and self.current_chapter in self.chapters_list:
+                        self.panel_selection = self.chapters_list.index(self.current_chapter)
+                    else:
+                        self.panel_selection = 0
                     self.panel_focused = True  # Focus the panel when book is loaded
                     self.left_panel_expanded = True  # Always open side panel when book is loaded
                     # Show preview of first chapter if available
