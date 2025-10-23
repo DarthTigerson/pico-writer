@@ -10,7 +10,7 @@ class StoryWriterUI:
         # Get terminal dimensions
         self.width, self.height = shutil.get_terminal_size()
         self.left_panel_expanded = True  # Start with panel open
-        self.left_panel_width = max(20, self.width // 4)  # 25% of screen width, min 20
+        self.left_panel_width = max(17, self.width // 4 - 3)  # 25% of screen width minus 3, min 17
         self.main_content = ""
         self.cursor_pos = 0
         self.scroll_offset = 0
@@ -375,6 +375,22 @@ class StoryWriterUI:
                 return False
         return False
     
+    def delete_chapter(self, chapter_name: str):
+        """Delete a chapter file"""
+        if not self.current_book or not chapter_name:
+            return False
+        
+        book_path = os.path.join(self.books_directory, self.current_book)
+        chapter_path = os.path.join(book_path, chapter_name)
+        
+        try:
+            os.remove(chapter_path)
+            # Update chapter order file
+            self.update_chapter_order(chapter_name, None)  # Remove from order
+            return True
+        except OSError:
+            return False
+    
     def rename_book(self, old_name: str, new_name: str):
         """Rename a book directory"""
         if not new_name.strip():
@@ -626,15 +642,15 @@ class StoryWriterUI:
             if i < panel_height - 2:
                 # Highlight selected item with reversed colors
                 if i == self.panel_selection and i in self.selectable_items:
-                    print(f"\033[{2 + i};3H\033[7m {line} \033[0m", end='')  # Reversed colors
+                    print(f"\033[{2 + i};2H\033[7m {line} \033[0m", end='')  # Reversed colors
                 else:
                     # Draw with reversed background for unselected items
-                    print(f"\033[{2 + i};3H\033[7m {line} \033[0m", end='')
+                    print(f"\033[{2 + i};2H\033[7m {line} \033[0m", end='')
     
     def draw_main_content(self):
         """Draw the main writing area"""
         if self.left_panel_expanded:
-            start_x = self.left_panel_width + 2
+            start_x = self.left_panel_width + 1
         else:
             start_x = 1
             
@@ -842,7 +858,7 @@ class StoryWriterUI:
     def draw_cursor(self):
         """Draw cursor at the correct position, accounting for text wrapping"""
         if self.left_panel_expanded:
-            start_x = self.left_panel_width + 3
+            start_x = self.left_panel_width + 2
         else:
             start_x = 2
             
@@ -932,7 +948,7 @@ class StoryWriterUI:
         elif key == 'CTRL_B':
             self.left_panel_expanded = not self.left_panel_expanded
             # Recalculate panel width when toggling
-            self.left_panel_width = max(20, self.width // 4)
+            self.left_panel_width = max(17, self.width // 4 - 3)
             # Reset panel focus when toggling
             self.panel_focused = False
             # Set panel selection to current chapter when opening side panel
@@ -951,10 +967,18 @@ class StoryWriterUI:
                 # Rename current chapter (only when side panel is closed)
                 chapter_name = self.current_chapter.replace('.md', '')
                 self.show_input_dialog(f"Rename chapter '{chapter_name}':", lambda name: self.rename_chapter_callback(self.current_chapter, name))
-        elif key == 'CTRL_D' and self.current_mode == "book_list":
-            # Delete book
-            if self.books_list and self.book_selection < len(self.books_list):
-                self.delete_book_callback()
+        elif key == 'CTRL_D':
+            if self.current_mode == "book_list":
+                # Delete book
+                if self.books_list and self.book_selection < len(self.books_list):
+                    self.delete_book_callback()
+            elif self.left_panel_expanded and self.current_book and self.chapters_list:
+                # Delete chapter from side panel
+                if self.panel_selection < len(self.chapters_list):
+                    self.delete_chapter_callback()
+            elif not self.left_panel_expanded and self.current_book and self.current_chapter:
+                # Delete current chapter from main editor
+                self.delete_chapter_callback()
         elif key == 'CTRL_O' and self.current_mode != "book_list":
             # Open book list
             self.left_panel_expanded = False  # Close side panel
@@ -1188,6 +1212,30 @@ class StoryWriterUI:
                 # Adjust selection if needed
                 if self.book_selection >= len(self.books_list):
                     self.book_selection = max(0, len(self.books_list) - 1)
+    
+    def delete_chapter_callback(self):
+        """Callback for deleting a chapter"""
+        chapter_name = None
+        
+        if self.left_panel_expanded and self.chapters_list and self.panel_selection < len(self.chapters_list):
+            # Delete from side panel
+            chapter_name = self.chapters_list[self.panel_selection]
+        elif not self.left_panel_expanded and self.current_chapter:
+            # Delete current chapter from main editor
+            chapter_name = self.current_chapter
+        
+        if chapter_name and self.delete_chapter(chapter_name):
+            # Reload the book to refresh the chapter list
+            self.load_book(self.current_book)
+            # Adjust selection if needed (only for side panel)
+            if self.left_panel_expanded and self.panel_selection >= len(self.chapters_list):
+                self.panel_selection = max(0, len(self.chapters_list) - 1)
+            # If we deleted the current chapter, clear the editor
+            if self.current_chapter == chapter_name:
+                self.main_content = ""
+                self.cursor_pos = 0
+                self.current_chapter = None
+                self.unsaved_changes = False
     
     def rename_chapter_callback(self, old_chapter: str, new_name: str):
         """Callback for renaming a chapter"""
