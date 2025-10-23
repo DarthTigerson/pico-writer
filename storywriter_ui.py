@@ -726,7 +726,7 @@ class StoryWriterUI:
         
         # Calculate dialog position (middle of screen)
         dialog_width = 40
-        dialog_height = 5
+        dialog_height = 3  # Reduced from 4 to 3
         x = (self.width - dialog_width) // 2
         y = (self.height - dialog_height) // 2
         
@@ -734,20 +734,31 @@ class StoryWriterUI:
         for row in range(y + 1, y + dialog_height - 1):
             print(f"\033[{row};{x + 1}H\033[7m{' ' * (dialog_width - 2)}", end='')
         
-        # Draw dialog border
-        self.draw_border(x, y, dialog_width, dialog_height, "Input")
+        # Determine title based on prompt
+        if "Chapter name:" in self.input_prompt:
+            title = "Chapter name"
+        elif "Book name:" in self.input_prompt:
+            title = "Book name"
+        elif "Rename" in self.input_prompt:
+            title = "Rename"
+        else:
+            title = "Input"
         
-        # Draw prompt
-        prompt = self.input_prompt[:dialog_width - 4]
-        print(f"\033[{y + 1};{x + 2}H{prompt}", end='')
+        # Draw dialog border
+        self.draw_border(x, y, dialog_width, dialog_height, title)
+        
+        # Draw prompt (only if it's not redundant with the title)
+        if not ("Chapter name:" in self.input_prompt and title == "Chapter name"):
+            prompt = self.input_prompt[:dialog_width - 4]
+            print(f"\033[{y + 1};{x + 2}H{prompt}", end='')
         
         # Draw input text
         input_display = self.input_text[:dialog_width - 4]
-        print(f"\033[{y + 3};{x + 2}H{input_display}", end='')
+        print(f"\033[{y + 1};{x + 2}H{input_display}", end='')  # Changed from y + 2 to y + 1
         
         # Draw cursor
         cursor_x = x + 2 + len(input_display)
-        print(f"\033[{y + 3};{cursor_x}H_", end='')
+        print(f"\033[{y + 1};{cursor_x}H_", end='')  # Changed from y + 2 to y + 1
     
     def draw_confirm_dialog(self):
         """Draw confirmation dialog in the middle of the screen"""
