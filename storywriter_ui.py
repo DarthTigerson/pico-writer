@@ -905,14 +905,9 @@ class StoryWriterUI:
             
         cursor_y = 2 + display_line
         
-        # Draw cursor as a blinking block that highlights the character at that position
-        # Get the character at cursor position
-        if self.cursor_pos < len(self.main_content):
-            char_at_cursor = self.main_content[self.cursor_pos]
-        else:
-            char_at_cursor = ' '  # Space if at end of content
-        
-        print(f"\033[{cursor_y};{cursor_x}H\033[5m\033[7m{char_at_cursor}\033[0m", end='')
+        # Position the terminal cursor at the correct location
+        # Let the terminal handle the cursor display naturally
+        print(f"\033[{cursor_y};{cursor_x}H", end='')
     
     def calculate_wrapped_lines_for_display(self, text, display_width):
         """Calculate how many display lines a text line will take when wrapped (matches display logic)"""
