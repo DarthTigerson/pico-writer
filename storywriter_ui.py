@@ -817,8 +817,8 @@ class StoryWriterUI:
             return
         
         # Calculate dialog position (middle of screen)
-        dialog_width = 30
-        dialog_height = 5
+        dialog_width = 20
+        dialog_height = 3
         x = (self.width - dialog_width) // 2
         y = (self.height - dialog_height) // 2
         
@@ -827,23 +827,16 @@ class StoryWriterUI:
             print(f"\033[{row};{x + 1}H\033[7m{' ' * (dialog_width - 2)}", end='')
         
         # Draw dialog border
-        self.draw_border(x, y, dialog_width, dialog_height, "Confirm")
-        
-        # Draw message
-        if self.confirm_type == "unsaved":
-            message = "Unsaved changes! Save?"
-        else:
-            message = "Overwrite chapter?"
-        print(f"\033[{y + 1};{x + 2}H{message}", end='')
+        self.draw_border(x, y, dialog_width, dialog_height, "Save")
         
         # Draw options
         yes_text = "Yes"
         no_text = "No"
         
         # Calculate positions - Yes on left, No on right
-        yes_x = x + 6
-        no_x = x + 20
-        option_y = y + 3
+        yes_x = x + 4
+        no_x = x + 12
+        option_y = y + 1
         
         # Draw Yes option (left) with arrow indicator
         if self.confirm_selection:
