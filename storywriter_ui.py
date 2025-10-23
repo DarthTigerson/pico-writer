@@ -343,6 +343,10 @@ class StoryWriterUI:
         if not safe_name:
             return False
         
+        # Check if book already exists in current books list
+        if safe_name in self.books_list:
+            return False
+        
         book_path = os.path.join(self.books_directory, safe_name)
         if os.path.exists(book_path):
             return False
@@ -379,6 +383,10 @@ class StoryWriterUI:
         # Sanitize new name for filesystem
         safe_name = "".join(c for c in new_name if c.isalnum() or c in (' ', '-', '_')).strip()
         if not safe_name:
+            return False
+        
+        # Check if new name already exists in books list (and it's not the same as old name)
+        if safe_name != old_name and safe_name in self.books_list:
             return False
         
         old_path = os.path.join(self.books_directory, old_name)
@@ -1195,6 +1203,10 @@ class StoryWriterUI:
         if not safe_name.endswith('.md'):
             safe_name += '.md'
         
+        # Check if new chapter name already exists (and it's not the same as old name)
+        if safe_name != old_chapter and safe_name in self.chapters_list:
+            return
+        
         try:
             book_path = os.path.join(self.books_directory, self.current_book)
             old_path = os.path.join(book_path, old_chapter)
@@ -1252,6 +1264,11 @@ class StoryWriterUI:
         # Add .md extension if not present
         if not safe_name.endswith('.md'):
             safe_name += '.md'
+        
+        # Check if chapter already exists
+        if safe_name in self.chapters_list:
+            # Chapter already exists, don't create duplicate
+            return
         
         # Create chapter file
         book_path = os.path.join(self.books_directory, self.current_book)
