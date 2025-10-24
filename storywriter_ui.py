@@ -704,35 +704,13 @@ class StoryWriterUI:
             display_start = max(0, self.scroll_offset)
             display_end = min(len(lines), display_start + content_height - 2)
             
-            # Process lines with word wrapping
-            wrapped_lines = []
-            for line in lines:
-                if len(line) <= display_width:
-                    wrapped_lines.append(line)
-                else:
-                    # Word wrapping that preserves the original line structure
-                    words = line.split(' ')
-                    current_line = ''
-                    for word in words:
-                        if len(current_line + ' ' + word) <= display_width:
-                            if current_line:
-                                current_line += ' ' + word
-                            else:
-                                current_line = word
-                        else:
-                            if current_line:
-                                wrapped_lines.append(current_line)
-                            current_line = word
-                    if current_line:
-                        wrapped_lines.append(current_line)
-            
-            # Display wrapped lines
-            display_start = max(0, self.scroll_offset)
-            display_end = min(len(wrapped_lines), display_start + content_height - 2)
-            
+            # Display lines without wrapping - just truncate if too long
             for i, line_idx in enumerate(range(display_start, display_end)):
-                if line_idx < len(wrapped_lines):
-                    line = wrapped_lines[line_idx]
+                if line_idx < len(lines):
+                    line = lines[line_idx]
+                    # Truncate line if it's too long
+                    if len(line) > display_width:
+                        line = line[:display_width]
                     print(f"\033[{2 + i};{start_x + 1}H{line}", end='')
     
     def draw_book_list(self, start_x: int, content_width: int, content_height: int):
@@ -861,78 +839,31 @@ class StoryWriterUI:
         sys.stdout.flush()
     
     def draw_cursor(self):
-        """Draw cursor at the correct position, accounting for text wrapping"""
+        """Draw cursor at the correct position - simple version without wrapping"""
         # Only show cursor when side panel is closed (edit mode)
         if self.left_panel_expanded:
             return  # Don't draw cursor in view mode
-        else:
-            start_x = 2
-            
+        
+        start_x = 2
+        
         # Get content up to cursor position
         content_before_cursor = self.main_content[:self.cursor_pos]
         
-        # Split into lines and calculate position using the same logic as display
+        # Split into lines - simple approach
         lines = content_before_cursor.split('\n')
-        current_line = lines[-1] if lines else ""
         
-        # Calculate display width (same as in draw_main_content)
-        if self.left_panel_expanded:
-            content_width = self.width - (self.left_panel_width + 2)
-        else:
-            content_width = self.width - 1
-        display_width = content_width - 2  # Subtract 2 for borders
+        # Cursor row is just the number of lines
+        cursor_row = len(lines) - 1
         
-        # Calculate which display line we're on (accounting for wrapping)
-        display_line = 0
-        for line in lines[:-1]:  # All lines except the current one
-            display_line += self.calculate_wrapped_lines_for_display(line, display_width)
+        # Cursor column is the length of the last line
+        cursor_col = len(lines[-1]) if lines else 0
         
-        # Calculate wrapped lines for current line up to cursor
-        current_line_to_cursor = current_line
-        wrapped_lines = self.wrap_line_for_display(current_line_to_cursor, display_width)
-        display_line += len(wrapped_lines) - 1  # -1 because we want the last line
+        # Calculate screen position
+        cursor_y = 2 + cursor_row - self.scroll_offset
+        cursor_x = start_x + cursor_col
         
-        # Calculate cursor position within the current wrapped line
-        if wrapped_lines:
-            cursor_x = start_x + len(wrapped_lines[-1])
-        else:
-            cursor_x = start_x
-            
-        cursor_y = 2 + display_line
-        
-        # Position the terminal cursor at the correct location
-        # Let the terminal handle the cursor display naturally
+        # Position the terminal cursor
         print(f"\033[{cursor_y};{cursor_x}H", end='')
-    
-    def calculate_wrapped_lines_for_display(self, text, display_width):
-        """Calculate how many display lines a text line will take when wrapped (matches display logic)"""
-        if not text:
-            return 1
-        wrapped = self.wrap_line_for_display(text, display_width)
-        return len(wrapped)
-    
-    def wrap_line_for_display(self, line, display_width):
-        """Wrap a single line using the same logic as draw_main_content"""
-        if len(line) <= display_width:
-            return [line]
-        else:
-            # Word wrapping that preserves the original line structure
-            words = line.split(' ')
-            lines = []
-            current_line = ''
-            for word in words:
-                if len(current_line + ' ' + word) <= display_width:
-                    if current_line:
-                        current_line += ' ' + word
-                    else:
-                        current_line = word
-                else:
-                    if current_line:
-                        lines.append(current_line)
-                    current_line = word
-            if current_line:
-                lines.append(current_line)
-            return lines
     
     def handle_input(self, key: str):
         """Handle keyboard input"""
@@ -1147,105 +1078,67 @@ class StoryWriterUI:
         return True
     
     def move_cursor_up(self):
-        """Move cursor up one line in the content, accounting for text wrapping"""
-        # Calculate display width
-        if self.left_panel_expanded:
-            content_width = self.width - (self.left_panel_width + 2)
-        else:
-            content_width = self.width - 1
-        display_width = content_width - 2  # Subtract 2 for borders
+        """Move cursor up one line - simple version"""
+        if not self.main_content:
+            return
         
         # Get content up to cursor position
         content_before_cursor = self.main_content[:self.cursor_pos]
         lines = content_before_cursor.split('\n')
         
         if len(lines) <= 1:
-            return  # Can't move up if only one line
+            return  # Already on first line
         
-        # Calculate current display line (accounting for wrapping)
-        display_line = 0
-        for line in lines[:-1]:  # All lines except the current one
-            display_line += self.calculate_wrapped_lines_for_display(line, display_width)
+        # Get current column position
+        current_col = len(lines[-1])
         
-        # Calculate wrapped lines for current line up to cursor
-        current_line_to_cursor = lines[-1]
-        wrapped_lines = self.wrap_line_for_display(current_line_to_cursor, display_width)
-        display_line += len(wrapped_lines) - 1  # -1 because we want the last line
+        # Move to previous line
+        prev_line_end = self.cursor_pos - current_col - 1  # -1 for the newline
+        if prev_line_end < 0:
+            return
         
-        if display_line > 0:  # Not on first display line
-            # Find the previous logical line
-            prev_logical_line = len(lines) - 2  # Previous line in the content
-            if prev_logical_line >= 0:
-                # Calculate how many display lines the previous line takes
-                prev_line = self.main_content.split('\n')[prev_logical_line]
-                prev_wrapped_lines = self.wrap_line_for_display(prev_line, display_width)
-                
-                # Calculate cursor position within the previous line
-                # Try to maintain the same column position
-                current_col = len(wrapped_lines[-1]) if wrapped_lines else 0
-                new_col = min(current_col, len(prev_wrapped_lines[-1]))
-                
-                # Calculate new cursor position
-                new_pos = sum(len(self.main_content.split('\n')[i]) + 1 for i in range(prev_logical_line)) + new_col
-                self.cursor_pos = min(new_pos, len(self.main_content))
+        # Find the start of the previous line
+        prev_content = self.main_content[:prev_line_end]
+        prev_lines = prev_content.split('\n')
+        prev_line = prev_lines[-1] if prev_lines else ""
+        
+        # Try to maintain column position, but don't go past end of line
+        new_col = min(current_col, len(prev_line))
+        
+        # Calculate new cursor position
+        self.cursor_pos = prev_line_end - len(prev_line) + new_col
     
     def move_cursor_down(self):
-        """Move cursor down one line in the content, accounting for text wrapping"""
-        # Calculate display width
-        if self.left_panel_expanded:
-            content_width = self.width - (self.left_panel_width + 2)
-        else:
-            content_width = self.width - 1
-        display_width = content_width - 2  # Subtract 2 for borders
+        """Move cursor down one line - simple version"""
+        if not self.main_content:
+            return
+        
+        # Get all lines
+        all_lines = self.main_content.split('\n')
         
         # Get content up to cursor position
         content_before_cursor = self.main_content[:self.cursor_pos]
-        lines = content_before_cursor.split('\n')
+        lines_before = content_before_cursor.split('\n')
         
-        if len(lines) <= 1:
-            return  # Can't move down if only one line
+        current_line_idx = len(lines_before) - 1
         
-        # Calculate current display line (accounting for wrapping)
-        display_line = 0
-        for line in lines[:-1]:  # All lines except the current one
-            display_line += self.calculate_wrapped_lines_for_display(line, display_width)
+        # Check if we're on the last line
+        if current_line_idx >= len(all_lines) - 1:
+            return  # Already on last line
         
-        # Calculate wrapped lines for current line up to cursor
-        current_line_to_cursor = lines[-1]
-        wrapped_lines = self.wrap_line_for_display(current_line_to_cursor, display_width)
-        display_line += len(wrapped_lines) - 1  # -1 because we want the last line
+        # Get current column position
+        current_col = len(lines_before[-1])
         
-        # Check if we can move to the next logical line
-        all_lines = self.main_content.split('\n')
-        if len(lines) < len(all_lines):  # Not on last logical line
-            # Calculate how many display lines the current line takes
-            current_line_full = all_lines[len(lines) - 1]
-            current_wrapped_lines = self.wrap_line_for_display(current_line_full, display_width)
-            
-            # If we're not on the last wrapped line of the current logical line, move down within the same logical line
-            if len(wrapped_lines) < len(current_wrapped_lines):
-                # Move to the next wrapped line within the same logical line
-                # Calculate the position within the current logical line
-                current_logical_line_start = sum(len(all_lines[i]) + 1 for i in range(len(lines) - 1))
-                current_col = len(wrapped_lines[-1])
-                new_col = min(current_col, len(current_wrapped_lines[len(wrapped_lines)]))
-                new_pos = current_logical_line_start + sum(len(current_wrapped_lines[i]) for i in range(len(wrapped_lines))) + new_col
-                self.cursor_pos = min(new_pos, len(self.main_content))
-            else:
-                # Move to the next logical line
-                next_logical_line = len(lines)
-                if next_logical_line < len(all_lines):
-                    next_line = all_lines[next_logical_line]
-                    next_wrapped_lines = self.wrap_line_for_display(next_line, display_width)
-                    
-                    # Calculate cursor position within the next line
-                    # Try to maintain the same column position
-                    current_col = len(wrapped_lines[-1]) if wrapped_lines else 0
-                    new_col = min(current_col, len(next_wrapped_lines[0]))
-                    
-                    # Calculate new cursor position
-                    new_pos = sum(len(all_lines[i]) + 1 for i in range(next_logical_line)) + new_col
-                    self.cursor_pos = min(new_pos, len(self.main_content))
+        # Move to next line
+        next_line = all_lines[current_line_idx + 1]
+        
+        # Try to maintain column position, but don't go past end of line
+        new_col = min(current_col, len(next_line))
+        
+        # Calculate new cursor position
+        # Sum up all previous lines plus newlines, then add the column
+        new_pos = sum(len(all_lines[i]) + 1 for i in range(current_line_idx + 1)) + new_col
+        self.cursor_pos = min(new_pos, len(self.main_content))
     
     def create_new_book_callback(self, name: str):
         """Callback for creating a new book"""
