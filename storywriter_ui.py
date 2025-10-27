@@ -40,9 +40,15 @@ class StoryWriterUI:
         self.confirm_selection = False  # False = No, True = Yes
         self.unsaved_changes = False
         self.original_content = ""
-        self.confirm_type = "save"  # "save" or "unsaved"
+        self.confirm_type = "save"  # "save", "unsaved", "delete_book", "delete_chapter"
         self.pending_navigation = None  # Store pending navigation action
         self.help_mode = False
+        
+        # Delete confirmation
+        self.delete_confirm_mode = False
+        self.delete_confirm_selection = False  # False = No, True = Yes
+        self.delete_confirm_type = "book"  # "book" or "chapter"
+        self.pending_delete_item = None  # Store the item to be deleted
         
         # Load last book on startup
         self.load_last_book()
@@ -502,6 +508,48 @@ class StoryWriterUI:
             self.confirm_selection = False
         return True
     
+    def handle_delete_confirm_dialog(self, key: str):
+        """Handle input in delete confirmation dialog"""
+        if key == 'LEFT':
+            # Move to Yes (leftmost option) - wrap around infinitely
+            self.delete_confirm_selection = True
+        elif key == 'RIGHT':
+            # Move to No (rightmost option) - wrap around infinitely
+            self.delete_confirm_selection = False
+        elif key == 'ENTER':
+            # Confirm selection
+            if self.delete_confirm_selection:
+                # Yes - perform the deletion
+                if self.delete_confirm_type == "book" and self.pending_delete_item:
+                    if self.delete_book(self.pending_delete_item):
+                        self.load_books()
+                        # Adjust selection if needed
+                        if self.book_selection >= len(self.books_list):
+                            self.book_selection = max(0, len(self.books_list) - 1)
+                elif self.delete_confirm_type == "chapter" and self.pending_delete_item:
+                    if self.delete_chapter(self.pending_delete_item):
+                        # Reload the book to refresh the chapter list
+                        self.load_book(self.current_book)
+                        # Adjust selection if needed (only for side panel)
+                        if self.left_panel_expanded and self.panel_selection >= len(self.chapters_list):
+                            self.panel_selection = max(0, len(self.chapters_list) - 1)
+                        # If we deleted the current chapter, clear the editor
+                        if self.current_chapter == self.pending_delete_item:
+                            self.main_content = ""
+                            self.cursor_pos = 0
+                            self.current_chapter = None
+                            self.unsaved_changes = False
+            # No - do nothing
+            self.delete_confirm_mode = False
+            self.delete_confirm_selection = False
+            self.pending_delete_item = None
+        elif key == 'ESC':  # Escape
+            # Cancel - do nothing
+            self.delete_confirm_mode = False
+            self.delete_confirm_selection = False
+            self.pending_delete_item = None
+        return True
+    
     def draw_help_panel(self):
         """Draw the help panel overlay"""
         if not self.help_mode:
@@ -835,6 +883,46 @@ class StoryWriterUI:
         else:
             print(f"\033[{option_y};{no_x}H\033[7m  {no_text} \033[0m", end='')
     
+    def draw_delete_confirm_dialog(self):
+        """Draw delete confirmation dialog in the middle of the screen"""
+        if not self.delete_confirm_mode:
+            return
+        
+        # Calculate dialog position (middle of screen)
+        dialog_width = 25
+        dialog_height = 3
+        x = (self.width - dialog_width) // 2
+        y = (self.height - dialog_height) // 2
+        
+        # Draw dialog background with color
+        for row in range(y + 1, y + dialog_height - 1):
+            print(f"\033[{row};{x + 1}H\033[7m{' ' * (dialog_width - 2)}", end='')
+        
+        # Draw dialog border with appropriate title
+        title = f"Delete {self.delete_confirm_type.title()}"
+        self.draw_border(x, y, dialog_width, dialog_height, title)
+        
+        # Draw options
+        yes_text = "Yes"
+        no_text = "No"
+        
+        # Calculate positions - Yes on left, No on right
+        yes_x = x + 6
+        no_x = x + 16
+        option_y = y + 1
+        
+        # Draw Yes option (left) with arrow indicator
+        if self.delete_confirm_selection:
+            print(f"\033[{option_y};{yes_x}H\033[7m> {yes_text} \033[0m", end='')
+        else:
+            print(f"\033[{option_y};{yes_x}H\033[7m  {yes_text} \033[0m", end='')
+        
+        # Draw No option (right) with arrow indicator
+        if not self.delete_confirm_selection:
+            print(f"\033[{option_y};{no_x}H\033[7m> {no_text} \033[0m", end='')
+        else:
+            print(f"\033[{option_y};{no_x}H\033[7m  {no_text} \033[0m", end='')
+    
     def draw_bottom_bar(self):
         """Draw the bottom status bar"""
         y = self.height
@@ -852,10 +940,11 @@ class StoryWriterUI:
         self.draw_main_content()
         self.draw_input_dialog()
         self.draw_confirm_dialog()
+        self.draw_delete_confirm_dialog()
         self.draw_help_panel()
         
         # Draw cursor in main content area
-        if not self.input_mode and not self.confirm_mode and not self.help_mode:
+        if not self.input_mode and not self.confirm_mode and not self.delete_confirm_mode and not self.help_mode:
             self.draw_cursor()
         
         sys.stdout.flush()
@@ -967,6 +1056,10 @@ class StoryWriterUI:
         if self.confirm_mode:
             return self.handle_confirm_dialog(key)
         
+        # Handle delete confirmation dialog
+        if self.delete_confirm_mode:
+            return self.handle_delete_confirm_dialog(key)
+        
         if key == 'CTRL_Q':
             return False  # Quit
         elif key == 'CTRL_B':
@@ -996,16 +1089,27 @@ class StoryWriterUI:
                 self.show_input_dialog("New name:", lambda name: self.rename_chapter_callback(self.current_chapter, name), old_name=chapter_name)
         elif key == 'CTRL_D':
             if self.current_mode == "book_list":
-                # Delete book
+                # Delete book - show confirmation
                 if self.books_list and self.book_selection < len(self.books_list):
-                    self.delete_book_callback()
+                    selected_book = self.books_list[self.book_selection]
+                    self.delete_confirm_mode = True
+                    self.delete_confirm_selection = False  # Default to No
+                    self.delete_confirm_type = "book"
+                    self.pending_delete_item = selected_book
             elif self.left_panel_expanded and self.current_book and self.chapters_list:
-                # Delete chapter from side panel
+                # Delete chapter from side panel - show confirmation
                 if self.panel_selection < len(self.chapters_list):
-                    self.delete_chapter_callback()
+                    selected_chapter = self.chapters_list[self.panel_selection]
+                    self.delete_confirm_mode = True
+                    self.delete_confirm_selection = False  # Default to No
+                    self.delete_confirm_type = "chapter"
+                    self.pending_delete_item = selected_chapter
             elif not self.left_panel_expanded and self.current_book and self.current_chapter:
-                # Delete current chapter from main editor
-                self.delete_chapter_callback()
+                # Delete current chapter from main editor - show confirmation
+                self.delete_confirm_mode = True
+                self.delete_confirm_selection = False  # Default to No
+                self.delete_confirm_type = "chapter"
+                self.pending_delete_item = self.current_chapter
         elif key == 'CTRL_O' and self.current_mode != "book_list":
             # Open book list
             self.left_panel_expanded = False  # Close side panel
