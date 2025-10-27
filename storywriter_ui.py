@@ -1505,11 +1505,14 @@ class StoryWriterUI:
             # Update chapter order file
             self.update_chapter_order(old_chapter, safe_name)
             
+            # Store whether we're renaming the current chapter
+            was_current_chapter = (self.current_chapter == old_chapter)
+            
             # Reload the book to refresh the chapter list
             self.load_book(self.current_book)
             
-            # If we renamed the current chapter, update current_chapter
-            if self.current_chapter == old_chapter:
+            # If we renamed the current chapter, restore it after reload
+            if was_current_chapter and safe_name in self.chapters_list:
                 self.current_chapter = safe_name
                 
         except OSError:
