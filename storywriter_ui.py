@@ -452,7 +452,7 @@ class StoryWriterUI:
             self.input_mode = False
             self.input_text = ""
             self.input_callback = None
-        elif key == 'ESC':  # Escape
+        elif key == 'ESC' or key == 'CTRL_C':  # Escape or Ctrl+C
             # Cancel input
             self.input_mode = False
             self.input_text = ""
@@ -502,7 +502,7 @@ class StoryWriterUI:
             # No - do nothing
             self.confirm_mode = False
             self.confirm_selection = False
-        elif key == 'ESC':  # Escape
+        elif key == 'ESC' or key == 'CTRL_C':  # Escape or Ctrl+C
             # Cancel - do nothing
             self.confirm_mode = False
             self.confirm_selection = False
@@ -543,7 +543,7 @@ class StoryWriterUI:
             self.delete_confirm_mode = False
             self.delete_confirm_selection = False
             self.pending_delete_item = None
-        elif key == 'ESC':  # Escape
+        elif key == 'ESC' or key == 'CTRL_C':  # Escape or Ctrl+C
             # Cancel - do nothing
             self.delete_confirm_mode = False
             self.delete_confirm_selection = False
