@@ -457,7 +457,7 @@ class StoryWriterUI:
                 capitalized_words.append(word)
         return ' '.join(capitalized_words)
     
-    def should_capitalize_sentence_start(self, content: str, cursor_pos: int) -> bool:
+    def should_capitalize_sentence_start(self, content: str, cursor_pos: int, new_char: str) -> bool:
         """Determine if a character should be capitalized at the start of a sentence"""
         # Check if we're at the very beginning of content
         if cursor_pos == 0:
@@ -475,6 +475,22 @@ class StoryWriterUI:
             before_cursor = content[:cursor_pos]
             # Look for pattern: "\n" (newline)
             if before_cursor.endswith('\n'):
+                return True
+        
+        return False
+    
+    def should_capitalize_standalone_i(self, content: str, cursor_pos: int, new_char: str) -> bool:
+        """Determine if we should capitalize a standalone 'i' when space is pressed"""
+        # Only check when space is pressed
+        if new_char != ' ':
+            return False
+        
+        # Check if the character before cursor is 'i'
+        if cursor_pos > 0 and content[cursor_pos - 1].lower() == 'i':
+            before_cursor = content[:cursor_pos - 1]  # Content before the 'i'
+            
+            # Check if 'i' is preceded by a space or at start of content
+            if cursor_pos == 1 or (before_cursor and before_cursor[-1] == ' '):
                 return True
         
         return False
@@ -1334,10 +1350,16 @@ class StoryWriterUI:
         elif len(key) == 1 and key.isprintable():
             # Insert character - only when side panel is closed
             if not self.left_panel_expanded:
-                # Check if we should capitalize this character (sentence start only)
+                # Check if we should capitalize this character (sentence start)
                 char_to_insert = key
-                if self.should_capitalize_sentence_start(self.main_content, self.cursor_pos):
+                if self.should_capitalize_sentence_start(self.main_content, self.cursor_pos, key):
                     char_to_insert = key.upper()
+                
+                # Check if we should capitalize a standalone 'i' when space is pressed
+                if key == ' ' and self.should_capitalize_standalone_i(self.main_content, self.cursor_pos, key):
+                    # Capitalize the 'i' that was just typed
+                    if self.cursor_pos > 0 and self.main_content[self.cursor_pos - 1].lower() == 'i':
+                        self.main_content = self.main_content[:self.cursor_pos - 1] + 'I' + self.main_content[self.cursor_pos:]
                 
                 self.main_content = self.main_content[:self.cursor_pos] + char_to_insert + self.main_content[self.cursor_pos:]
                 self.cursor_pos += 1
