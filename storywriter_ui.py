@@ -840,10 +840,6 @@ class StoryWriterUI:
         # Draw input text
         input_display = self.input_text[:dialog_width - 4]
         print(f"\033[{y + 1};{x + 2}H{input_display}", end='')  # Input text on first content line
-        
-        # Draw cursor
-        cursor_x = x + 2 + len(input_display)
-        print(f"\033[{y + 1};{cursor_x}H_", end='')  # Cursor on input text line
     
     def draw_confirm_dialog(self):
         """Draw confirmation dialog in the middle of the screen"""
