@@ -634,6 +634,8 @@ class StoryWriterUI:
         
         # Help content
         help_lines = [
+            "StoryWriter v1.0.0",
+            "",
             "GENERAL COMMANDS:",
             "  ^H    - Toggle this help panel",
             "  ^B    - Toggle side panel",
@@ -641,7 +643,7 @@ class StoryWriterUI:
             "  ^N    - New book/chapter",
             "  ^R    - Rename book",
             "  ^D    - Delete book",
-            "  ^S    - Save/Reload current chapter",
+            "  ^S    - Save/Reload",
             "  Enter - Select item",
             "  ESC   - Close dialogs/panels"
         ]
