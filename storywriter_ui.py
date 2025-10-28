@@ -37,7 +37,7 @@ class StoryWriterUI:
         self.preview_content = ""
         self.preview_chapter = None
         self.confirm_mode = False
-        self.confirm_selection = False  # False = No, True = Yes
+        self.confirm_selection = 0  # 0 = Yes, 1 = No, 2 = Reload
         self.unsaved_changes = False
         self.original_content = ""
         self.confirm_type = "save"  # "save", "unsaved", "delete_book", "delete_chapter"
@@ -469,22 +469,26 @@ class StoryWriterUI:
     
     def handle_confirm_dialog(self, key: str):
         """Handle input in confirmation dialog"""
+        # Determine if we should show reload option (only for save type, not unsaved)
+        show_reload = (self.confirm_type == "save")
+        max_options = 3 if show_reload else 2
+        
         if key == 'LEFT':
-            # Move to Yes (leftmost option) - wrap around infinitely
-            self.confirm_selection = True
+            # Move left through options with wraparound
+            self.confirm_selection = (self.confirm_selection - 1) % max_options
         elif key == 'RIGHT':
-            # Move to No (rightmost option) - wrap around infinitely
-            self.confirm_selection = False
+            # Move right through options with wraparound
+            self.confirm_selection = (self.confirm_selection + 1) % max_options
         elif key == 'ENTER':
             # Confirm selection
-            if self.confirm_selection:
-                # Yes - save the chapter
+            if self.confirm_selection == 0:  # Yes
+                # Save the chapter
                 if self.confirm_type == "unsaved":
                     self.save_current_chapter()
                     self.unsaved_changes = False
                 else:
                     self.save_current_chapter()
-            else:
+            elif self.confirm_selection == 1:  # No
                 # No - for unsaved changes, allow navigation to continue
                 if self.confirm_type == "unsaved":
                     self.unsaved_changes = False
@@ -502,13 +506,18 @@ class StoryWriterUI:
                             self.load_chapter_preview(selected_chapter)
                             self.preview_mode = True
                     self.pending_navigation = None
-            # No - do nothing
+            elif self.confirm_selection == 2 and show_reload:  # Reload (only available for save type)
+                # Reload the chapter content from file
+                if self.current_chapter:
+                    self.load_chapter(self.current_chapter)
+                    self.unsaved_changes = False
+            # Close dialog
             self.confirm_mode = False
-            self.confirm_selection = False
+            self.confirm_selection = 0
         elif key == 'ESC' or key == 'CTRL_C':  # Escape or Ctrl+C
             # Cancel - do nothing
             self.confirm_mode = False
-            self.confirm_selection = False
+            self.confirm_selection = 0
         return True
     
     def handle_delete_confirm_dialog(self, key: str):
@@ -849,8 +858,14 @@ class StoryWriterUI:
         if not self.confirm_mode:
             return
         
+        # Determine if we should show reload option (only for save type, not unsaved)
+        show_reload = (self.confirm_type == "save")
+        
         # Calculate dialog position (middle of screen)
-        dialog_width = 20
+        if show_reload:
+            dialog_width = 30
+        else:
+            dialog_width = 20
         dialog_height = 3
         x = (self.width - dialog_width) // 2
         y = (self.height - dialog_height) // 2
@@ -866,22 +881,48 @@ class StoryWriterUI:
         yes_text = "Yes"
         no_text = "No"
         
-        # Calculate positions - Yes on left, No on right
-        yes_x = x + 2
-        no_x = x + 12
-        option_y = y + 1
-        
-        # Draw Yes option (left) with arrow indicator
-        if self.confirm_selection:
-            print(f"\033[{option_y};{yes_x}H\033[7m> {yes_text} \033[0m", end='')
+        if show_reload:
+            # Three options: Yes, No, Reload
+            reload_text = "Reload"
+            yes_x = x + 2
+            no_x = x + 10
+            reload_x = x + 20
+            option_y = y + 1
+            
+            # Draw Yes option (left) with arrow indicator
+            if self.confirm_selection == 0:
+                print(f"\033[{option_y};{yes_x}H\033[7m> {yes_text} \033[0m", end='')
+            else:
+                print(f"\033[{option_y};{yes_x}H\033[7m  {yes_text} \033[0m", end='')
+            
+            # Draw No option (middle) with arrow indicator
+            if self.confirm_selection == 1:
+                print(f"\033[{option_y};{no_x}H\033[7m> {no_text} \033[0m", end='')
+            else:
+                print(f"\033[{option_y};{no_x}H\033[7m  {no_text} \033[0m", end='')
+            
+            # Draw Reload option (right) with arrow indicator
+            if self.confirm_selection == 2:
+                print(f"\033[{option_y};{reload_x}H\033[7m> {reload_text} \033[0m", end='')
+            else:
+                print(f"\033[{option_y};{reload_x}H\033[7m  {reload_text} \033[0m", end='')
         else:
-            print(f"\033[{option_y};{yes_x}H\033[7m  {yes_text} \033[0m", end='')
-        
-        # Draw No option (right) with arrow indicator
-        if not self.confirm_selection:
-            print(f"\033[{option_y};{no_x}H\033[7m> {no_text} \033[0m", end='')
-        else:
-            print(f"\033[{option_y};{no_x}H\033[7m  {no_text} \033[0m", end='')
+            # Two options: Yes, No
+            yes_x = x + 2
+            no_x = x + 12
+            option_y = y + 1
+            
+            # Draw Yes option (left) with arrow indicator
+            if self.confirm_selection == 0:
+                print(f"\033[{option_y};{yes_x}H\033[7m> {yes_text} \033[0m", end='')
+            else:
+                print(f"\033[{option_y};{yes_x}H\033[7m  {yes_text} \033[0m", end='')
+            
+            # Draw No option (right) with arrow indicator
+            if self.confirm_selection == 1:
+                print(f"\033[{option_y};{no_x}H\033[7m> {no_text} \033[0m", end='')
+            else:
+                print(f"\033[{option_y};{no_x}H\033[7m  {no_text} \033[0m", end='')
     
     def draw_delete_confirm_dialog(self):
         """Draw delete confirmation dialog in the middle of the screen"""
@@ -1124,7 +1165,7 @@ class StoryWriterUI:
             # Show save confirmation dialog
             if self.current_book and self.current_chapter:
                 self.confirm_mode = True
-                self.confirm_selection = False  # Default to No
+                self.confirm_selection = 1  # Default to No
                 self.confirm_type = "save"
         elif key == 'CTRL_H':
             # Toggle help panel
@@ -1203,7 +1244,7 @@ class StoryWriterUI:
                     # Check for unsaved changes before navigating
                     if self.unsaved_changes:
                         self.confirm_mode = True
-                        self.confirm_selection = False  # Default to No
+                        self.confirm_selection = 1  # Default to No
                         self.confirm_type = "unsaved"
                         self.pending_navigation = "UP"
                         return True
@@ -1233,7 +1274,7 @@ class StoryWriterUI:
                         # Check for unsaved changes before navigating
                         if self.unsaved_changes:
                             self.confirm_mode = True
-                            self.confirm_selection = False  # Default to No
+                            self.confirm_selection = 1  # Default to No
                             self.confirm_type = "unsaved"
                             self.pending_navigation = "DOWN"
                             return True
