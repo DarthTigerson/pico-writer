@@ -863,7 +863,7 @@ class StoryWriterUI:
         
         # Calculate dialog position (middle of screen)
         if show_reload:
-            dialog_width = 30
+            dialog_width = 32
         else:
             dialog_width = 20
         dialog_height = 3
@@ -885,8 +885,8 @@ class StoryWriterUI:
             # Three options: Yes, No, Reload
             reload_text = "Reload"
             yes_x = x + 2
-            no_x = x + 10
-            reload_x = x + 20
+            no_x = x + 13  # Center "No" in the dialog
+            reload_x = x + 22  # Move Reload closer to No
             option_y = y + 1
             
             # Draw Yes option (left) with arrow indicator
