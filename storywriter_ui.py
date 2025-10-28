@@ -864,7 +864,7 @@ class StoryWriterUI:
         no_text = "No"
         
         # Calculate positions - Yes on left, No on right
-        yes_x = x + 4
+        yes_x = x + 2
         no_x = x + 12
         option_y = y + 1
         
@@ -904,7 +904,7 @@ class StoryWriterUI:
         no_text = "No"
         
         # Calculate positions - Yes on left, No on right
-        yes_x = x + 6
+        yes_x = x + 2
         no_x = x + 16
         option_y = y + 1
         
