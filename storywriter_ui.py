@@ -495,6 +495,43 @@ class StoryWriterUI:
         
         return False
     
+    def update_scroll_offset(self):
+        """Update scroll offset to keep cursor visible"""
+        if not self.main_content:
+            return
+        
+        # Calculate display width
+        if self.left_panel_expanded:
+            content_width = self.width - (self.left_panel_width + 2)
+        else:
+            content_width = self.width - 1
+        display_width = content_width - 2
+        content_height = self.height
+        
+        # Calculate which virtual line the cursor is on
+        content_before_cursor = self.main_content[:self.cursor_pos]
+        lines = content_before_cursor.split('\n')
+        
+        cursor_virtual_line = 0
+        for line in lines[:-1]:  # All lines except the current one
+            cursor_virtual_line += self.calculate_wrapped_lines_for_display(line, display_width)
+        
+        # Calculate wrapped lines for current line up to cursor
+        current_line_to_cursor = lines[-1] if lines else ""
+        wrapped_lines = self.wrap_line_for_display(current_line_to_cursor, display_width)
+        cursor_virtual_line += len(wrapped_lines) - 1  # -1 because we want the last line
+        
+        # Calculate available display lines
+        available_lines = content_height - 2  # Subtract 2 for border
+        
+        # Adjust scroll offset to keep cursor visible
+        if cursor_virtual_line < self.scroll_offset:
+            # Cursor is above visible area, scroll up
+            self.scroll_offset = cursor_virtual_line
+        elif cursor_virtual_line >= self.scroll_offset + available_lines:
+            # Cursor is below visible area, scroll down
+            self.scroll_offset = cursor_virtual_line - available_lines + 1
+    
     def handle_input_dialog(self, key: str):
         """Handle input in dialog mode"""
         if key == 'ENTER':
@@ -1241,6 +1278,8 @@ class StoryWriterUI:
                 self.cursor_pos -= 1
                 # Mark as having unsaved changes
                 self.unsaved_changes = True
+                # Update scroll to keep cursor visible
+                self.update_scroll_offset()
         elif key == 'ENTER':
             if self.current_mode == "book_list":
                 # Handle book selection
@@ -1284,6 +1323,8 @@ class StoryWriterUI:
                 self.cursor_pos += 1
                 # Mark as having unsaved changes
                 self.unsaved_changes = True
+                # Update scroll to keep cursor visible
+                self.update_scroll_offset()
         elif key == 'UP':
             if self.current_mode == "book_list" and self.books_list:
                 # Navigate book list
@@ -1312,6 +1353,7 @@ class StoryWriterUI:
                 # Move cursor up in main content
                 if not self.left_panel_expanded:
                     self.move_cursor_up()
+                    self.update_scroll_offset()
         elif key == 'DOWN':
             if self.current_mode == "book_list" and self.books_list:
                 # Navigate book list
@@ -1341,14 +1383,17 @@ class StoryWriterUI:
                 # Move cursor down in main content
                 if not self.left_panel_expanded:
                     self.move_cursor_down()
+                    self.update_scroll_offset()
         elif key == 'LEFT':
             if not self.left_panel_expanded or not self.panel_focused:
                 if self.cursor_pos > 0:
                     self.cursor_pos -= 1
+                    self.update_scroll_offset()
         elif key == 'RIGHT':
             if not self.left_panel_expanded or not self.panel_focused:
                 if self.cursor_pos < len(self.main_content):
                     self.cursor_pos += 1
+                    self.update_scroll_offset()
         elif len(key) == 1 and key.isprintable():
             # Insert character - only when side panel is closed
             if not self.left_panel_expanded:
@@ -1367,6 +1412,8 @@ class StoryWriterUI:
                 self.cursor_pos += 1
                 # Mark as having unsaved changes
                 self.unsaved_changes = True
+                # Update scroll to keep cursor visible
+                self.update_scroll_offset()
             # Return focus to editor when typing
             self.panel_focused = False
             
