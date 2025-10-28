@@ -457,6 +457,28 @@ class StoryWriterUI:
                 capitalized_words.append(word)
         return ' '.join(capitalized_words)
     
+    def should_capitalize_sentence_start(self, content: str, cursor_pos: int) -> bool:
+        """Determine if a character should be capitalized at the start of a sentence"""
+        # Check if we're at the very beginning of content
+        if cursor_pos == 0:
+            return True
+        
+        # Check if we're starting a new sentence (after sentence-ending punctuation + space)
+        if cursor_pos >= 2:
+            before_cursor = content[:cursor_pos]
+            # Look for patterns: ". ", "! ", "? " (sentence-ending punctuation followed by space)
+            if before_cursor.endswith('. ') or before_cursor.endswith('! ') or before_cursor.endswith('? '):
+                return True
+        
+        # Check if we're starting a new line (after newline)
+        if cursor_pos >= 1:
+            before_cursor = content[:cursor_pos]
+            # Look for pattern: "\n" (newline)
+            if before_cursor.endswith('\n'):
+                return True
+        
+        return False
+    
     def handle_input_dialog(self, key: str):
         """Handle input in dialog mode"""
         if key == 'ENTER':
@@ -1312,7 +1334,12 @@ class StoryWriterUI:
         elif len(key) == 1 and key.isprintable():
             # Insert character - only when side panel is closed
             if not self.left_panel_expanded:
-                self.main_content = self.main_content[:self.cursor_pos] + key + self.main_content[self.cursor_pos:]
+                # Check if we should capitalize this character (sentence start only)
+                char_to_insert = key
+                if self.should_capitalize_sentence_start(self.main_content, self.cursor_pos):
+                    char_to_insert = key.upper()
+                
+                self.main_content = self.main_content[:self.cursor_pos] + char_to_insert + self.main_content[self.cursor_pos:]
                 self.cursor_pos += 1
                 # Mark as having unsaved changes
                 self.unsaved_changes = True
