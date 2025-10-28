@@ -5,7 +5,7 @@ import shutil
 import os
 from typing import List, Optional
 
-class StoryWriterUI:
+class PicoWriterUI:
     def __init__(self):
         # Get terminal dimensions
         self.width, self.height = shutil.get_terminal_size()
@@ -1748,5 +1748,5 @@ class StoryWriterUI:
             print("Goodbye!")
 
 if __name__ == "__main__":
-    ui = StoryWriterUI()
+    ui = PicoWriterUI()
     ui.run()
