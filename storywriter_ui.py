@@ -446,6 +446,17 @@ class StoryWriterUI:
         self.input_prompt = prompt
         self.old_name = old_name
     
+    def capitalize_words(self, text: str) -> str:
+        """Capitalize the first letter of each word"""
+        words = text.split(' ')
+        capitalized_words = []
+        for word in words:
+            if word:
+                capitalized_words.append(word[0].upper() + word[1:].lower())
+            else:
+                capitalized_words.append(word)
+        return ' '.join(capitalized_words)
+    
     def handle_input_dialog(self, key: str):
         """Handle input in dialog mode"""
         if key == 'ENTER':
@@ -464,7 +475,9 @@ class StoryWriterUI:
             if self.input_text:
                 self.input_text = self.input_text[:-1]
         elif len(key) == 1 and key.isprintable():
+            # Add character and auto-capitalize words
             self.input_text += key
+            self.input_text = self.capitalize_words(self.input_text)
         return True
     
     def handle_confirm_dialog(self, key: str):
@@ -590,7 +603,7 @@ class StoryWriterUI:
             "  ^N    - New book/chapter",
             "  ^R    - Rename book",
             "  ^D    - Delete book",
-            "  ^S    - Save current chapter",
+            "  ^S    - Save/Reload current chapter",
             "  Enter - Select item",
             "  ESC   - Close dialogs/panels"
         ]
