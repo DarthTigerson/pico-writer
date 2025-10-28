@@ -130,8 +130,9 @@ class StoryWriterUI:
             
             # Read book order from .data file
             book_order = []
-            if os.path.exists('.data'):
-                with open('.data', 'r') as f:
+            data_file_path = os.path.join(self.books_directory, '.data')
+            if os.path.exists(data_file_path):
+                with open(data_file_path, 'r') as f:
                     book_order = [line.strip() for line in f.readlines() if line.strip()]
             
             # Sort books by order (recent first), then alphabetically for books not in order
@@ -221,8 +222,9 @@ class StoryWriterUI:
         try:
             # Read existing order
             book_order = []
-            if os.path.exists('.data'):
-                with open('.data', 'r') as f:
+            data_file_path = os.path.join(self.books_directory, '.data')
+            if os.path.exists(data_file_path):
+                with open(data_file_path, 'r') as f:
                     book_order = [line.strip() for line in f.readlines() if line.strip()]
             
             # Remove book if it exists and add to front
@@ -234,7 +236,7 @@ class StoryWriterUI:
             book_order = book_order[:10]
             
             # Write updated order
-            with open('.data', 'w') as f:
+            with open(data_file_path, 'w') as f:
                 for book in book_order:
                     f.write(book + '\n')
         except OSError:
@@ -243,8 +245,9 @@ class StoryWriterUI:
     def load_last_book(self):
         """Load the last book from .data file or open book selection"""
         try:
-            if os.path.exists('.data'):
-                with open('.data', 'r') as f:
+            data_file_path = os.path.join(self.books_directory, '.data')
+            if os.path.exists(data_file_path):
+                with open(data_file_path, 'r') as f:
                     book_order = [line.strip() for line in f.readlines() if line.strip()]
                     # Get the first (most recent) book
                     if book_order and os.path.exists(os.path.join(self.books_directory, book_order[0])):
