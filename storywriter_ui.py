@@ -831,10 +831,11 @@ class StoryWriterUI:
         
         # Draw prompt (only if it's not redundant with the title)
         if not ("Chapter name:" in self.input_prompt and title == "Chapter name"):
-            if not (hasattr(self, 'old_name') and self.old_name):
-                # Only show prompt for non-rename dialogs
-                prompt = self.input_prompt[:dialog_width - 4]
-                print(f"\033[{y + 1};{x + 2}H{prompt}", end='')
+            if not ("Book name:" in self.input_prompt and title == "Book name"):
+                if not (hasattr(self, 'old_name') and self.old_name):
+                    # Only show prompt for non-rename dialogs
+                    prompt = self.input_prompt[:dialog_width - 4]
+                    print(f"\033[{y + 1};{x + 2}H{prompt}", end='')
         
         # Draw input text
         input_display = self.input_text[:dialog_width - 4]
