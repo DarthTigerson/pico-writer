@@ -40,10 +40,11 @@ class PicoWriterUI:
         self.confirm_selection = 0  # 0 = Yes, 1 = No, 2 = Reload
         self.unsaved_changes = False
         self.original_content = ""
-        self.confirm_type = "save"  # "save", "unsaved", "delete_book", "delete_chapter"
+        self.confirm_type = "save"  # "save", "unsaved", "delete_book", "delete_chapter", "quit"
         self.pending_navigation = None  # Store pending navigation action
         self.help_mode = False
         self.preview_mode_reading = False  # Preview/reading mode (can't type, scroll with arrows)
+        self.quit_requested = False  # Flag to request quit after confirmation
         
         # Delete confirmation
         self.delete_confirm_mode = False
@@ -581,6 +582,11 @@ class PicoWriterUI:
                 if self.confirm_type == "unsaved":
                     self.save_current_chapter()
                     self.unsaved_changes = False
+                elif self.confirm_type == "quit":
+                    # Save before quitting
+                    self.save_current_chapter()
+                    self.unsaved_changes = False
+                    self.quit_requested = True
                 else:
                     self.save_current_chapter()
             elif self.confirm_selection == 1:  # No
@@ -601,6 +607,9 @@ class PicoWriterUI:
                             self.load_chapter_preview(selected_chapter)
                             self.preview_mode = True
                     self.pending_navigation = None
+                elif self.confirm_type == "quit":
+                    # Quit without saving
+                    self.quit_requested = True
             elif self.confirm_selection == 2 and show_reload:  # Reload (only available for save type)
                 # Reload the chapter content from file
                 if self.current_chapter:
@@ -973,9 +982,17 @@ class PicoWriterUI:
         # Determine if we should show reload option (only for save type, not unsaved)
         show_reload = (self.confirm_type == "save")
         
+        # Determine dialog title based on confirm type
+        if self.confirm_type == "quit":
+            dialog_title = "Save changes"
+        else:
+            dialog_title = "Save"
+        
         # Calculate dialog position (middle of screen)
         if show_reload:
             dialog_width = 32
+        elif self.confirm_type == "quit":
+            dialog_width = 22  # Wider for "Save changes" title
         else:
             dialog_width = 20
         dialog_height = 3
@@ -987,7 +1004,7 @@ class PicoWriterUI:
             print(f"\033[{row};{x + 1}H\033[7m{' ' * (dialog_width - 2)}", end='')
         
         # Draw dialog border
-        self.draw_border(x, y, dialog_width, dialog_height, "Save")
+        self.draw_border(x, y, dialog_width, dialog_height, dialog_title)
         
         # Draw options
         yes_text = "Yes"
@@ -1207,14 +1224,26 @@ class PicoWriterUI:
         
         # Handle confirmation dialog
         if self.confirm_mode:
-            return self.handle_confirm_dialog(key)
+            self.handle_confirm_dialog(key)
+            # Check if quit was requested after confirmation
+            if self.quit_requested:
+                self.quit_requested = False  # Reset flag
+                return False  # Quit the application
+            return True
         
         # Handle delete confirmation dialog
         if self.delete_confirm_mode:
             return self.handle_delete_confirm_dialog(key)
         
         if key == 'CTRL_Q':
-            return False  # Quit
+            # Check for unsaved changes before quitting
+            if self.current_book and self.current_chapter and self.unsaved_changes:
+                self.confirm_mode = True
+                self.confirm_selection = 1  # Default to No
+                self.confirm_type = "quit"  # New type for quit confirmation
+                return True
+            else:
+                return False  # Quit immediately if no unsaved changes
         elif key == 'CTRL_B':
             self.left_panel_expanded = not self.left_panel_expanded
             # Recalculate panel width when toggling
