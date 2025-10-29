@@ -316,6 +316,8 @@ class PicoWriterUI:
                 self.original_content = self.main_content
                 self.unsaved_changes = False
                 self.current_chapter = chapter_name
+                # Enter READ MODE when chapter is opened
+                self.preview_mode_reading = True
                 # Set panel selection to this chapter if side panel is open
                 if self.left_panel_expanded and chapter_name in self.chapters_list:
                     self.panel_selection = self.chapters_list.index(chapter_name)
@@ -327,6 +329,8 @@ class PicoWriterUI:
                 self.original_content = ""
                 self.unsaved_changes = False
                 self.current_chapter = chapter_name
+                # Enter READ MODE when chapter is opened
+                self.preview_mode_reading = True
                 # Set panel selection to this chapter if side panel is open
                 if self.left_panel_expanded and chapter_name in self.chapters_list:
                     self.panel_selection = self.chapters_list.index(chapter_name)
@@ -674,7 +678,7 @@ class PicoWriterUI:
         
         # Help content
         help_lines = [
-            "StoryWriter v1.0.0",
+            "StoryWriter v1.0.1",
             "",
             "GENERAL COMMANDS:",
             "  ^H    - Toggle this help panel",
@@ -710,7 +714,7 @@ class PicoWriterUI:
     def draw_mode_indicator(self, x: int, y: int):
         """Draw mode indicator text at the specified position"""
         if self.preview_mode_reading:
-            mode_text = "READ MODE"
+            mode_text = "VIEW MODE"
         else:
             mode_text = "EDIT MODE"
         print(f"\033[{y};{x}H{mode_text}", end='')
@@ -853,12 +857,12 @@ class PicoWriterUI:
             title = "STORY EDITOR" if not self.left_panel_expanded else ""
         self.draw_border(start_x, 1, content_width, content_height, title)
         
-        # Draw mode indicator in top right (READ MODE or EDIT MODE)
-        if not self.current_mode == "book_list":
-            # Position indicator at top right of border (inside the border)
+        # Draw mode indicator in bottom right (READ MODE or EDIT MODE) - only when sidebar is closed
+        if not self.current_mode == "book_list" and not self.left_panel_expanded:
+            # Position indicator at bottom right of screen
             # Adjust position to fit "READ MODE" or "EDIT MODE" text
             indicator_x = start_x + content_width - 10  # Adjust for text length
-            indicator_y = 1
+            indicator_y = self.height  # Bottom of screen
             self.draw_mode_indicator(indicator_x, indicator_y)
         
         if self.current_mode == "book_list":
@@ -1808,6 +1812,8 @@ class PicoWriterUI:
             self.main_content = ""
             self.cursor_pos = 0
             self.current_chapter = safe_name
+            # Enter READ MODE when chapter is opened
+            self.preview_mode_reading = True
             # Exit preview mode and close side panel
             self.preview_mode = False
             self.left_panel_expanded = False

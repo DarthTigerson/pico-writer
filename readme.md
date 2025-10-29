@@ -1,4 +1,4 @@
-# PicoWriter v1.0.0
+# PicoWriter v1.0.1
 
 A minimalist terminal-based story writing application designed for distraction-free creative writing.
 
@@ -62,7 +62,7 @@ data/
 
 ## Version
 
-**Current Version**: v1.0.0
+**Current Version**: v1.0.1
 
 This is the initial stable release featuring core writing functionality, book management, and auto-capitalization.
 
