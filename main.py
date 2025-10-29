@@ -43,6 +43,7 @@ class PicoWriterUI:
         self.confirm_type = "save"  # "save", "unsaved", "delete_book", "delete_chapter"
         self.pending_navigation = None  # Store pending navigation action
         self.help_mode = False
+        self.preview_mode_reading = False  # Preview/reading mode (can't type, scroll with arrows)
         
         # Delete confirmation
         self.delete_confirm_mode = False
@@ -109,6 +110,8 @@ class PicoWriterUI:
                 return 'CTRL_S'
             elif key == '\x08':  # Ctrl+H
                 return 'CTRL_H'
+            elif key == '\x10':  # Ctrl+P
+                return 'CTRL_P'
             elif key == '\x1b':  # Escape
                 return 'ESC'
             else:
@@ -681,6 +684,7 @@ class PicoWriterUI:
             "  ^R    - Rename book",
             "  ^D    - Delete book",
             "  ^S    - Save/Reload",
+            "  ^P    - Toggle preview mode",
             "  Enter - Select item",
             "  ESC   - Close dialogs/panels"
         ]
@@ -703,6 +707,14 @@ class PicoWriterUI:
         for row in range(1, self.height + 1):
             print(f"\033[{row};1H{' ' * self.width}", end='')
         
+    def draw_mode_indicator(self, x: int, y: int):
+        """Draw mode indicator text at the specified position"""
+        if self.preview_mode_reading:
+            mode_text = "READ MODE"
+        else:
+            mode_text = "EDIT MODE"
+        print(f"\033[{y};{x}H{mode_text}", end='')
+    
     def draw_border(self, x: int, y: int, width: int, height: int, title: str = ""):
         """Draw a border box at the specified position"""
         if title:
@@ -840,6 +852,14 @@ class PicoWriterUI:
         else:
             title = "STORY EDITOR" if not self.left_panel_expanded else ""
         self.draw_border(start_x, 1, content_width, content_height, title)
+        
+        # Draw mode indicator in top right (READ MODE or EDIT MODE)
+        if not self.current_mode == "book_list":
+            # Position indicator at top right of border (inside the border)
+            # Adjust position to fit "READ MODE" or "EDIT MODE" text
+            indicator_x = start_x + content_width - 10  # Adjust for text length
+            indicator_y = 1
+            self.draw_mode_indicator(indicator_x, indicator_y)
         
         if self.current_mode == "book_list":
             self.draw_book_list(start_x, content_width, content_height)
@@ -1075,7 +1095,7 @@ class PicoWriterUI:
         self.draw_help_panel()
         
         # Draw cursor in main content area
-        if not self.input_mode and not self.confirm_mode and not self.delete_confirm_mode and not self.help_mode:
+        if not self.input_mode and not self.confirm_mode and not self.delete_confirm_mode and not self.help_mode and not self.preview_mode_reading:
             self.draw_cursor()
         
         sys.stdout.flush()
@@ -1260,11 +1280,18 @@ class PicoWriterUI:
         elif key == 'CTRL_H':
             # Toggle help panel
             self.help_mode = not self.help_mode
+        elif key == 'CTRL_P':
+            # Toggle preview/reading mode
+            self.preview_mode_reading = not self.preview_mode_reading
         elif key == 'ESC' and self.current_mode == "book_list":
             # Go back to editor mode
             self.current_mode = "editor"
             self.book_focused = False
         elif key == 'BACKSPACE':
+            # Prevent backspace in preview/reading mode
+            if self.preview_mode_reading:
+                return True
+            
             if self.current_mode == "book_list":
                 # Exit book list mode and return to side panel
                 self.current_mode = "editor"
@@ -1318,6 +1345,10 @@ class PicoWriterUI:
                 # Return focus to editor after selection
                 self.panel_focused = False
             elif not self.left_panel_expanded:
+                # Prevent Enter in preview/reading mode
+                if self.preview_mode_reading:
+                    return True
+                
                 # Only allow editing when side panel is closed
                 self.main_content = self.main_content[:self.cursor_pos] + '\n' + self.main_content[self.cursor_pos:]
                 self.cursor_pos += 1
@@ -1326,6 +1357,12 @@ class PicoWriterUI:
                 # Update scroll to keep cursor visible
                 self.update_scroll_offset()
         elif key == 'UP':
+            # In preview/reading mode, scroll up instead of moving cursor
+            if self.preview_mode_reading and not self.left_panel_expanded:
+                if self.scroll_offset > 0:
+                    self.scroll_offset -= 1
+                return True
+            
             if self.current_mode == "book_list" and self.books_list:
                 # Navigate book list
                 self.book_focused = True
@@ -1355,6 +1392,40 @@ class PicoWriterUI:
                     self.move_cursor_up()
                     self.update_scroll_offset()
         elif key == 'DOWN':
+            # In preview/reading mode, scroll down instead of moving cursor
+            if self.preview_mode_reading and not self.left_panel_expanded:
+                # Calculate maximum scroll offset based on content
+                content_to_show = self.preview_content if (self.preview_mode and self.preview_content) else self.main_content
+                if content_to_show:
+                    lines = content_to_show.split('\n')
+                    display_width = (self.width - (self.left_panel_width + 2 if self.left_panel_expanded else 1)) - 2
+                    display_lines = []
+                    for line in lines:
+                        if len(line) <= display_width:
+                            display_lines.append(line)
+                        else:
+                            # Wrap long lines
+                            words = line.split(' ')
+                            current_display_line = ''
+                            for word in words:
+                                if len(current_display_line + ' ' + word) <= display_width:
+                                    if current_display_line:
+                                        current_display_line += ' ' + word
+                                    else:
+                                        current_display_line = word
+                                else:
+                                    if current_display_line:
+                                        display_lines.append(current_display_line)
+                                    current_display_line = word
+                            if current_display_line:
+                                display_lines.append(current_display_line)
+                    
+                    available_lines = self.height - 2
+                    max_scroll = max(0, len(display_lines) - available_lines)
+                    if self.scroll_offset < max_scroll:
+                        self.scroll_offset += 1
+                return True
+            
             if self.current_mode == "book_list" and self.books_list:
                 # Navigate book list
                 self.book_focused = True
@@ -1385,16 +1456,28 @@ class PicoWriterUI:
                     self.move_cursor_down()
                     self.update_scroll_offset()
         elif key == 'LEFT':
+            # Prevent cursor movement in preview/reading mode
+            if self.preview_mode_reading:
+                return True
+            
             if not self.left_panel_expanded or not self.panel_focused:
                 if self.cursor_pos > 0:
                     self.cursor_pos -= 1
                     self.update_scroll_offset()
         elif key == 'RIGHT':
+            # Prevent cursor movement in preview/reading mode
+            if self.preview_mode_reading:
+                return True
+            
             if not self.left_panel_expanded or not self.panel_focused:
                 if self.cursor_pos < len(self.main_content):
                     self.cursor_pos += 1
                     self.update_scroll_offset()
         elif len(key) == 1 and key.isprintable():
+            # Prevent typing in preview/reading mode
+            if self.preview_mode_reading:
+                return True
+            
             # Insert character - only when side panel is closed
             if not self.left_panel_expanded:
                 # Check if we should capitalize this character (sentence start)
