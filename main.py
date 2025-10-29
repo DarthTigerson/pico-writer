@@ -984,13 +984,15 @@ class PicoWriterUI:
         
         # Determine dialog title based on confirm type
         if self.confirm_type == "quit":
-            dialog_title = "Quit"
+            dialog_title = "Save changes"
         else:
             dialog_title = "Save"
         
         # Calculate dialog position (middle of screen)
         if show_reload:
             dialog_width = 32
+        elif self.confirm_type == "quit":
+            dialog_width = 22  # Wider for "Save changes" title
         else:
             dialog_width = 20
         dialog_height = 3
