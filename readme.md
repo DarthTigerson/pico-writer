@@ -16,12 +16,40 @@ A minimalist terminal-based story writing application designed for distraction-f
 
 ## Installation
 
+### System Installation (Recommended)
+
+For system-wide installation on Linux systems (including Picocalc):
+
+```bash
+# Run as root or with sudo
+sudo ./install.sh
+```
+
+This will:
+- Install PicoWriter to `/opt/picowriter`
+- Create a launcher script at `/root/command-launcher/picowriter.sh`
+- Make PicoWriter available system-wide as `picowriter`
+
+After installation, you can launch PicoWriter simply by typing:
+```bash
+picowriter
+```
+
+### Manual Installation
+
 1. Clone this repository
 2. Ensure you have Python 3 installed
 3. Run the application:
    ```bash
    python3 main.py
    ```
+
+### Uninstallation
+
+To remove PicoWriter from your system:
+```bash
+sudo ./uninstall.sh
+```
 
 ## Quick Start
 
