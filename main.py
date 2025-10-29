@@ -669,7 +669,7 @@ class PicoWriterUI:
         y = (self.height - panel_height) // 2
         
         # Draw help panel border
-        self.draw_border(x, y, panel_width, panel_height, "Help")
+        self.draw_border(x, y, panel_width, panel_height, "Help v1.0.1")
         
         # Fill help panel background with solid color
         for row in range(y + 1, y + panel_height - 1):
@@ -678,17 +678,15 @@ class PicoWriterUI:
         
         # Help content
         help_lines = [
-            "StoryWriter v1.0.1",
-            "",
             "GENERAL COMMANDS:",
             "  ^H    - Toggle this help panel",
             "  ^B    - Toggle side panel",
+            "  ^P    - Toggle view/edit mode",
             "  ^O    - Open book selection",
             "  ^N    - New book/chapter",
             "  ^R    - Rename book",
             "  ^D    - Delete book",
             "  ^S    - Save/Reload",
-            "  ^P    - Toggle preview mode",
             "  Enter - Select item",
             "  ESC   - Close dialogs/panels"
         ]
